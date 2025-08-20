@@ -78,7 +78,7 @@ public class User extends BaseEntity {
     @Column(name = "configuracoes", columnDefinition = "jsonb")
     private String configuracoes;
 
-    // Constructors
+    // === CONSTRUTORES ===
     public User() {
         super();
     }
@@ -92,7 +92,24 @@ public class User extends BaseEntity {
         this.ativo = Boolean.TRUE;
     }
 
-    // Getters e Setters
+    // === MÉTODOS UTILITÁRIOS ===
+    public boolean isAdmin() {
+        return role != null && role.isAdmin();
+    }
+
+    public boolean isUsuario() {
+        return role != null && role.isUsuario();
+    }
+
+    public void registrarLogin() {
+        this.ultimoLogin = LocalDateTime.now();
+    }
+
+    public String getNomeCompleto() {
+        return nome + (departamento != null ? " (" + departamento + ")" : "");
+    }
+
+    // === GETTERS E SETTERS ===
     public String getNome() {
         return nome;
     }
@@ -173,24 +190,7 @@ public class User extends BaseEntity {
         this.configuracoes = configuracoes;
     }
 
-    // Métodos utilitários
-    public boolean isAdmin() {
-        return role != null && role.isAdmin();
-    }
-
-    public boolean isUsuario() {
-        return role != null && role.isUsuario();
-    }
-
-    public void registrarLogin() {
-        this.ultimoLogin = LocalDateTime.now();
-    }
-
-    public String getNomeCompleto() {
-        return nome + (departamento != null ? " (" + departamento + ")" : "");
-    }
-
-    // Equals e HashCode baseados no email (único)
+    // === EQUALS E HASHCODE ===
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

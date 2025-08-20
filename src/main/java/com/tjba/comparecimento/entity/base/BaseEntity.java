@@ -33,10 +33,15 @@ public abstract class BaseEntity {
     @Column(name = "version")
     private Long version;
 
-    // Constructors
+    // === CONSTRUTORES ===
     protected BaseEntity() {}
 
-    // Getters e Setters
+    // === MÉTODOS UTILITÁRIOS ===
+    public boolean isNew() {
+        return id == null;
+    }
+
+    // === GETTERS E SETTERS ===
     public Long getId() {
         return id;
     }
@@ -69,12 +74,7 @@ public abstract class BaseEntity {
         this.version = version;
     }
 
-    // Métodos utilitários
-    public boolean isNew() {
-        return id == null;
-    }
-
-    // Equals e HashCode baseados no ID
+    // === EQUALS E HASHCODE ===
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

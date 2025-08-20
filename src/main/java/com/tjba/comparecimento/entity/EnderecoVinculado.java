@@ -2,37 +2,24 @@ package com.tjba.comparecimento.entity;
 
 import com.tjba.comparecimento.entity.base.BaseEntity;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Pattern;
-import jakarta.validation.constraints.Size;
+import jakarta.validation.constraints.*;
 
 import java.util.Objects;
 
 /**
- * Entidade que representa um endereço.
+ * Entidade que representa um endereço vinculado a uma pessoa monitorada.
  */
 @Entity
-@Table(name = "enderecos",
+@Table(name = "enderecos_vinculados",
         indexes = {
-                @Index(name = "idx_endereco_cep", columnList = "cep"),
-                @Index(name = "idx_endereco_cidade", columnList = "cidade"),
-                @Index(name = "idx_endereco_estado", columnList = "estado")
+                @Index(name = "idx_endereco_pessoa", columnList = "pessoa_monitorada_id"),
+                @Index(name = "idx_endereco_cep", columnList = "cep")
         }
 )
-@NamedQueries({
-        @NamedQuery(
-                name = "Endereco.findByCep",
-                query = "SELECT e FROM Endereco e WHERE e.cep = :cep"
-        ),
-        @NamedQuery(
-                name = "Endereco.findByCidade",
-                query = "SELECT e FROM Endereco e WHERE e.cidade = :cidade"
-        )
-})
-public class Endereco extends BaseEntity {
+public class EnderecoVinculado extends BaseEntity {
 
     @NotBlank(message = "CEP é obrigatório")
-    @Pattern(regexp = "\\d{5}-?\\d{3}", message = "CEP deve ter o formato 00000-000")
+    @Pattern(regexp = "\\d{5}-?\\d{3}", message = "CEP deve ter formato válido")
     @Column(name = "cep", nullable = false, length = 9)
     private String cep;
 
@@ -65,12 +52,18 @@ public class Endereco extends BaseEntity {
     @Column(name = "estado", nullable = false, length = 2)
     private String estado;
 
-    // Constructors
-    public Endereco() {
+    // === RELACIONAMENTO ===
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "pessoa_monitorada_id", nullable = false,
+            foreignKey = @ForeignKey(name = "fk_endereco_pessoa"))
+    private PessoaMonitorada pessoaMonitorada;
+
+    // === CONSTRUTORES ===
+    public EnderecoVinculado() {
         super();
     }
 
-    public Endereco(String cep, String logradouro, String bairro, String cidade, String estado) {
+    public EnderecoVinculado(String cep, String logradouro, String bairro, String cidade, String estado) {
         this();
         this.cep = cep;
         this.logradouro = logradouro;
@@ -79,16 +72,53 @@ public class Endereco extends BaseEntity {
         this.estado = estado;
     }
 
-    // Getters e Setters
-    public String getCep() {
-        return cep;
+    // === MÉTODOS UTILITÁRIOS ===
+    public String getEnderecoCompleto() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(logradouro);
+        if (numero != null && !numero.trim().isEmpty()) {
+            sb.append(", ").append(numero);
+        }
+        if (complemento != null && !complemento.trim().isEmpty()) {
+            sb.append(", ").append(complemento);
+        }
+        sb.append(", ").append(bairro);
+        sb.append(", ").append(cidade).append(" - ").append(estado);
+        sb.append(", CEP: ").append(cep);
+        return sb.toString();
     }
 
+    public String getEnderecoResumido() {
+        return String.format("%s, %s - %s",
+                logradouro + (numero != null ? ", " + numero : ""),
+                cidade, estado);
+    }
+
+    public String getCepSomenteNumeros() {
+        return cep != null ? cep.replaceAll("[^\\d]", "") : null;
+    }
+
+    // === FORMATAÇÃO AUTOMÁTICA ===
     public void setCep(String cep) {
-        this.cep = cep != null ? cep.replaceAll("[^\\d]", "") : null;
-        if (this.cep != null && this.cep.length() == 8) {
-            this.cep = this.cep.substring(0, 5) + "-" + this.cep.substring(5);
+        if (cep != null) {
+            String digits = cep.replaceAll("[^\\d]", "");
+            if (digits.length() == 8) {
+                this.cep = digits.substring(0, 5) + "-" + digits.substring(5);
+            } else {
+                this.cep = cep;
+            }
+        } else {
+            this.cep = null;
         }
+    }
+
+    public void setEstado(String estado) {
+        this.estado = estado != null ? estado.toUpperCase() : null;
+    }
+
+    // === GETTERS E SETTERS ===
+    public String getCep() {
+        return cep;
     }
 
     public String getLogradouro() {
@@ -135,62 +165,35 @@ public class Endereco extends BaseEntity {
         return estado;
     }
 
-    public void setEstado(String estado) {
-        this.estado = estado != null ? estado.toUpperCase() : null;
+    public PessoaMonitorada getPessoaMonitorada() {
+        return pessoaMonitorada;
     }
 
-    // Métodos utilitários
-    public String getEnderecoCompleto() {
-        StringBuilder sb = new StringBuilder();
-
-        sb.append(logradouro);
-        if (numero != null && !numero.trim().isEmpty()) {
-            sb.append(", ").append(numero);
-        }
-        if (complemento != null && !complemento.trim().isEmpty()) {
-            sb.append(", ").append(complemento);
-        }
-        sb.append(", ").append(bairro);
-        sb.append(", ").append(cidade).append(" - ").append(estado);
-        if (cep != null) {
-            sb.append(", CEP: ").append(cep);
-        }
-
-        return sb.toString();
-    }
-
-    public String getEnderecoResumido() {
-        return String.format("%s, %s - %s",
-                logradouro + (numero != null ? ", " + numero : ""),
-                cidade,
-                estado);
-    }
-
-    public String getCepSomenteNumeros() {
-        return cep != null ? cep.replaceAll("[^\\d]", "") : null;
+    public void setPessoaMonitorada(PessoaMonitorada pessoaMonitorada) {
+        this.pessoaMonitorada = pessoaMonitorada;
     }
 
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        Endereco endereco = (Endereco) o;
-        return Objects.equals(cep, endereco.cep) &&
-                Objects.equals(logradouro, endereco.logradouro) &&
-                Objects.equals(numero, endereco.numero) &&
-                Objects.equals(bairro, endereco.bairro);
+        EnderecoVinculado that = (EnderecoVinculado) o;
+        return Objects.equals(cep, that.cep) &&
+                Objects.equals(logradouro, that.logradouro) &&
+                Objects.equals(numero, that.numero) &&
+                Objects.equals(pessoaMonitorada, that.pessoaMonitorada);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(cep, logradouro, numero, bairro);
+        return Objects.hash(cep, logradouro, numero, pessoaMonitorada);
     }
 
     @Override
     public String toString() {
-        return "Endereco{" +
+        return "EnderecoVinculado{" +
                 "id=" + getId() +
-                ", endereco='" + getEnderecoResumido() + '\'' +
+                ", enderecoResumido='" + getEnderecoResumido() + '\'' +
                 ", cep='" + cep + '\'' +
                 '}';
     }

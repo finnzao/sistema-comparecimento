@@ -14,7 +14,6 @@ public enum StatusComparecimento {
     StatusComparecimento(String code, String label) {
         this.code = code;
         this.label = label;
-
     }
 
     public String getCode() {
@@ -24,7 +23,6 @@ public enum StatusComparecimento {
     public String getLabel() {
         return label;
     }
-
 
     /**
      * Converte string para enum (case insensitive)

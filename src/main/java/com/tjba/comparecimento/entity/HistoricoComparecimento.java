@@ -18,33 +18,18 @@ import java.util.Objects;
 @Entity
 @Table(name = "historico_comparecimentos",
         indexes = {
-                @Index(name = "idx_historico_pessoa", columnList = "pessoa_id"),
+                @Index(name = "idx_historico_pessoa", columnList = "pessoa_monitorada_id"),
                 @Index(name = "idx_historico_data", columnList = "data_comparecimento"),
-                @Index(name = "idx_historico_tipo", columnList = "tipo_validacao"),
-                @Index(name = "idx_historico_pessoa_data", columnList = "pessoa_id, data_comparecimento DESC")
+                @Index(name = "idx_historico_tipo", columnList = "tipo_validacao")
         }
 )
-@NamedQueries({
-        @NamedQuery(
-                name = "HistoricoComparecimento.findByPessoaOrderByDataDesc",
-                query = "SELECT h FROM HistoricoComparecimento h WHERE h.pessoa = :pessoa ORDER BY h.dataComparecimento DESC"
-        ),
-        @NamedQuery(
-                name = "HistoricoComparecimento.findByPessoaAndPeriodo",
-                query = "SELECT h FROM HistoricoComparecimento h WHERE h.pessoa = :pessoa AND h.dataComparecimento BETWEEN :inicio AND :fim ORDER BY h.dataComparecimento DESC"
-        ),
-        @NamedQuery(
-                name = "HistoricoComparecimento.countByPessoaAndTipo",
-                query = "SELECT COUNT(h) FROM HistoricoComparecimento h WHERE h.pessoa = :pessoa AND h.tipoValidacao = :tipo"
-        )
-})
 public class HistoricoComparecimento extends BaseEntity {
 
     @NotNull(message = "Pessoa é obrigatória")
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "pessoa_id", nullable = false,
+    @JoinColumn(name = "pessoa_monitorada_id", nullable = false,
             foreignKey = @ForeignKey(name = "fk_historico_pessoa"))
-    private Pessoa pessoa;
+    private PessoaMonitorada pessoaMonitorada;
 
     @NotNull(message = "Data do comparecimento é obrigatória")
     @Column(name = "data_comparecimento", nullable = false)
@@ -67,31 +52,50 @@ public class HistoricoComparecimento extends BaseEntity {
     @Column(name = "observacoes", length = 500)
     private String observacoes;
 
-    @Column(name = "anexos", columnDefinition = "jsonb")
-    private String anexos;
-
-    // Constructors
+    // === CONSTRUTORES ===
     public HistoricoComparecimento() {
         super();
     }
 
-    public HistoricoComparecimento(Pessoa pessoa, LocalDate dataComparecimento,
+    public HistoricoComparecimento(PessoaMonitorada pessoaMonitorada, LocalDate dataComparecimento,
                                    TipoValidacao tipoValidacao, String validadoPor) {
         this();
-        this.pessoa = pessoa;
+        this.pessoaMonitorada = pessoaMonitorada;
         this.dataComparecimento = dataComparecimento;
         this.tipoValidacao = tipoValidacao;
         this.validadoPor = validadoPor;
         this.horaComparecimento = LocalTime.now();
     }
 
-    // Getters e Setters
-    public Pessoa getPessoa() {
-        return pessoa;
+    // === MÉTODOS UTILITÁRIOS ===
+    public LocalDateTime getDataHoraComparecimento() {
+        if (dataComparecimento == null) return null;
+        if (horaComparecimento == null) return dataComparecimento.atStartOfDay();
+        return dataComparecimento.atTime(horaComparecimento);
     }
 
-    public void setPessoa(Pessoa pessoa) {
-        this.pessoa = pessoa;
+    public String getResumo() {
+        return String.format("%s - %s em %s",
+                dataComparecimento,
+                tipoValidacao.getLabel(),
+                horaComparecimento != null ? horaComparecimento : "horário não informado");
+    }
+
+    public boolean isComparecimentoVirtual() {
+        return tipoValidacao != null && tipoValidacao.isVirtual();
+    }
+
+    public boolean isJustificativa() {
+        return tipoValidacao != null && tipoValidacao.isJustificativa();
+    }
+
+    // === GETTERS E SETTERS ===
+    public PessoaMonitorada getPessoaMonitorada() {
+        return pessoaMonitorada;
+    }
+
+    public void setPessoaMonitorada(PessoaMonitorada pessoaMonitorada) {
+        this.pessoaMonitorada = pessoaMonitorada;
     }
 
     public LocalDate getDataComparecimento() {
@@ -134,56 +138,26 @@ public class HistoricoComparecimento extends BaseEntity {
         this.observacoes = observacoes;
     }
 
-    public String getAnexos() {
-        return anexos;
-    }
-
-    public void setAnexos(String anexos) {
-        this.anexos = anexos;
-    }
-
-    // Métodos utilitários
-    public LocalDateTime getDataHoraComparecimento() {
-        if (dataComparecimento == null) return null;
-        if (horaComparecimento == null) return dataComparecimento.atStartOfDay();
-        return dataComparecimento.atTime(horaComparecimento);
-    }
-
-    public String getResumo() {
-        return String.format("%s - %s em %s",
-                dataComparecimento,
-                tipoValidacao.getLabel(),
-                horaComparecimento != null ? horaComparecimento : "horário não informado");
-    }
-
-    public boolean isComparecimentoVirtual() {
-        return tipoValidacao != null && tipoValidacao.isVirtual();
-    }
-
-    public boolean isJustificativa() {
-        return tipoValidacao != null && tipoValidacao.isJustificativa();
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         HistoricoComparecimento that = (HistoricoComparecimento) o;
-        return Objects.equals(pessoa, that.pessoa) &&
+        return Objects.equals(pessoaMonitorada, that.pessoaMonitorada) &&
                 Objects.equals(dataComparecimento, that.dataComparecimento) &&
                 Objects.equals(horaComparecimento, that.horaComparecimento);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(pessoa, dataComparecimento, horaComparecimento);
+        return Objects.hash(pessoaMonitorada, dataComparecimento, horaComparecimento);
     }
 
     @Override
     public String toString() {
         return "HistoricoComparecimento{" +
                 "id=" + getId() +
-                ", pessoa=" + (pessoa != null ? pessoa.getNome() : "null") +
+                ", pessoaMonitorada=" + (pessoaMonitorada != null ? pessoaMonitorada.getNomeCompleto() : "null") +
                 ", dataComparecimento=" + dataComparecimento +
                 ", tipoValidacao=" + tipoValidacao +
                 '}';
