@@ -227,10 +227,10 @@ public class ComparecimentoService {
         Long totalJustificativas = historicoRepository.countByPeriodoAndTipo(dataInicio, dataFim, comarca, TipoValidacao.JUSTIFICADO);
 
         // 3. Calcular estatísticas
-        Long totalPessoas = pessoaRepository.countByComarca(comarca);
+        Long totalPessoas = comarca != null ? pessoaRepository.countByComarca(comarca) : pessoaRepository.count();
         Double percentualConformidade = calcularPercentualConformidade(comarca);
 
-        // 4. Montar resposta
+        // 4. Montar resposta - usando o construtor correto
         return new RelatorioComparecimentoResponse(
                 dataInicio,
                 dataFim,
