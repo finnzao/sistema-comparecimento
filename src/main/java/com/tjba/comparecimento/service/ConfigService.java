@@ -13,6 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.HashMap;
+import java.util.Collections;
 
 /**
  * Service para gerenciamento de configurações do sistema.
@@ -28,23 +30,27 @@ public class ConfigService {
     // @Autowired private CacheService cacheService;
 
     // Configurações padrão do sistema
-    private static final Map<String, String> CONFIGURACOES_PADRAO = Map.of(
-            "sistema.nome", "Sistema de Comparecimento TJBA",
-            "sistema.versao", "1.0.0",
-            "sistema.manutencao", "false",
-            "notificacao.email.ativo", "true",
-            "notificacao.sms.ativo", "false",
-            "comparecimento.prazo_alerta_dias", "3",
-            "comparecimento.prazo_vencimento_dias", "30",
-            "relatorio.max_registros", "10000",
-            "backup.automatico", "true",
-            "backup.horario", "02:00",
-            "audit.log_ativo", "true",
-            "seguranca.sessao_timeout_minutos", "60",
-            "seguranca.tentativas_login_max", "5",
-            "integracao.viacep.timeout", "5000",
-            "integracao.viacep.retry_attempts", "3"
-    );
+    private static final Map<String, String> CONFIGURACOES_PADRAO;
+
+    static {
+        Map<String, String> configs = new HashMap<>();
+        configs.put("sistema.nome", "Sistema de Comparecimento TJBA");
+        configs.put("sistema.versao", "1.0.0");
+        configs.put("sistema.manutencao", "false");
+        configs.put("notificacao.email.ativo", "true");
+        configs.put("notificacao.sms.ativo", "false");
+        configs.put("comparecimento.prazo_alerta_dias", "3");
+        configs.put("comparecimento.prazo_vencimento_dias", "30");
+        configs.put("relatorio.max_registros", "10000");
+        configs.put("backup.automatico", "true");
+        configs.put("backup.horario", "02:00");
+        configs.put("audit.log_ativo", "true");
+        configs.put("seguranca.sessao_timeout_minutos", "60");
+        configs.put("seguranca.tentativas_login_max", "5");
+        configs.put("integracao.viacep.timeout", "5000");
+        configs.put("integracao.viacep.retry_attempts", "3");
+        CONFIGURACOES_PADRAO = Collections.unmodifiableMap(configs);
+    }
 
     /**
      * Obter todas as configurações do sistema
@@ -213,8 +219,7 @@ public class ConfigService {
                 getValorConfiguracaoAsBoolean("notificacao.email.ativo"),
                 getValorConfiguracaoAsBoolean("notificacao.sms.ativo"),
                 getValorConfiguracaoAsInteger("comparecimento.prazo_alerta_dias"),
-                getValorConfiguracaoAsInteger("comparecimento.prazo_vencimento_dias")
-        );
+                getValorConfiguracaoAsInteger("comparecimento.prazo_vencimento_dias"));
     }
 
     /**
@@ -225,8 +230,7 @@ public class ConfigService {
         return new SecurityConfig(
                 getValorConfiguracaoAsInteger("seguranca.sessao_timeout_minutos"),
                 getValorConfiguracaoAsInteger("seguranca.tentativas_login_max"),
-                getValorConfiguracaoAsBoolean("audit.log_ativo")
-        );
+                getValorConfiguracaoAsBoolean("audit.log_ativo"));
     }
 
     // === MÉTODOS AUXILIARES ===
@@ -340,8 +344,7 @@ public class ConfigService {
                 config.getDescricao(),
                 config.getAtivo(),
                 config.getCriadoEm(),
-                config.getAtualizadoEm()
-        );
+                config.getAtualizadoEm());
     }
 
     // === CLASSES AUXILIARES ===
@@ -352,7 +355,8 @@ public class ConfigService {
         private final Integer prazoAlertaDias;
         private final Integer prazoVencimentoDias;
 
-        public NotificationConfig(Boolean emailAtivo, Boolean smsAtivo, Integer prazoAlertaDias, Integer prazoVencimentoDias) {
+        public NotificationConfig(Boolean emailAtivo, Boolean smsAtivo, Integer prazoAlertaDias,
+                Integer prazoVencimentoDias) {
             this.emailAtivo = emailAtivo;
             this.smsAtivo = smsAtivo;
             this.prazoAlertaDias = prazoAlertaDias;
@@ -360,10 +364,21 @@ public class ConfigService {
         }
 
         // Getters
-        public Boolean getEmailAtivo() { return emailAtivo; }
-        public Boolean getSmsAtivo() { return smsAtivo; }
-        public Integer getPrazoAlertaDias() { return prazoAlertaDias; }
-        public Integer getPrazoVencimentoDias() { return prazoVencimentoDias; }
+        public Boolean getEmailAtivo() {
+            return emailAtivo;
+        }
+
+        public Boolean getSmsAtivo() {
+            return smsAtivo;
+        }
+
+        public Integer getPrazoAlertaDias() {
+            return prazoAlertaDias;
+        }
+
+        public Integer getPrazoVencimentoDias() {
+            return prazoVencimentoDias;
+        }
     }
 
     public static class SecurityConfig {
@@ -378,8 +393,16 @@ public class ConfigService {
         }
 
         // Getters
-        public Integer getSessaoTimeoutMinutos() { return sessaoTimeoutMinutos; }
-        public Integer getTentativasLoginMax() { return tentativasLoginMax; }
-        public Boolean getAuditLogAtivo() { return auditLogAtivo; }
+        public Integer getSessaoTimeoutMinutos() {
+            return sessaoTimeoutMinutos;
+        }
+
+        public Integer getTentativasLoginMax() {
+            return tentativasLoginMax;
+        }
+
+        public Boolean getAuditLogAtivo() {
+            return auditLogAtivo;
+        }
     }
 }

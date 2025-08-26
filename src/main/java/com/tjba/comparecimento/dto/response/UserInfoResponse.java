@@ -2,127 +2,118 @@ package com.tjba.comparecimento.dto.response;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 
-import java.time.LocalDate;
-
 /**
- * DTO para resposta de relatório de comparecimentos.
+ * DTO para resposta de informações do usuário autenticado.
  */
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class UserInfoResponse {
 
-    private LocalDate dataInicio;
-    private LocalDate dataFim;
-    private Integer totalPessoas;
-    private Integer totalComparecimentos;
-    private Integer totalPresenciais;
-    private Integer totalVirtuais;
-    private Integer totalJustificativas;
-    private Double percentualConformidade;
-    private String comarca;
+    private Long id;
+    private String nome;
+    private String email;
+    private String role;
+    private String departamento;
+    private String telefone;
+    private String avatar;
+    private Boolean ativo;
 
     // Constructors
     public UserInfoResponse() {}
 
-    public UserInfoResponse(LocalDate dataInicio, LocalDate dataFim, Integer totalPessoas,
-                                           Integer totalComparecimentos, Integer totalPresenciais,
-                                           Integer totalVirtuais, Integer totalJustificativas,
-                                           Double percentualConformidade, String comarca) {
-        this.dataInicio = dataInicio;
-        this.dataFim = dataFim;
-        this.totalPessoas = totalPessoas;
-        this.totalComparecimentos = totalComparecimentos;
-        this.totalPresenciais = totalPresenciais;
-        this.totalVirtuais = totalVirtuais;
-        this.totalJustificativas = totalJustificativas;
-        this.percentualConformidade = percentualConformidade;
-        this.comarca = comarca;
+    public UserInfoResponse(Long id, String nome, String email, String role, String departamento) {
+        this.id = id;
+        this.nome = nome;
+        this.email = email;
+        this.role = role;
+        this.departamento = departamento;
+    }
+
+    public UserInfoResponse(Long id, String nome, String email, String role, String departamento, 
+                           String telefone, String avatar, Boolean ativo) {
+        this.id = id;
+        this.nome = nome;
+        this.email = email;
+        this.role = role;
+        this.departamento = departamento;
+        this.telefone = telefone;
+        this.avatar = avatar;
+        this.ativo = ativo;
     }
 
     // Getters e Setters
-    public LocalDate getDataInicio() {
-        return dataInicio;
+    public Long getId() {
+        return id;
     }
 
-    public void setDataInicio(LocalDate dataInicio) {
-        this.dataInicio = dataInicio;
+    public void setId(Long id) {
+        this.id = id;
     }
 
-    public LocalDate getDataFim() {
-        return dataFim;
+    public String getNome() {
+        return nome;
     }
 
-    public void setDataFim(LocalDate dataFim) {
-        this.dataFim = dataFim;
+    public void setNome(String nome) {
+        this.nome = nome;
     }
 
-    public Integer getTotalPessoas() {
-        return totalPessoas;
+    public String getEmail() {
+        return email;
     }
 
-    public void setTotalPessoas(Integer totalPessoas) {
-        this.totalPessoas = totalPessoas;
+    public void setEmail(String email) {
+        this.email = email;
     }
 
-    public Integer getTotalComparecimentos() {
-        return totalComparecimentos;
+    public String getRole() {
+        return role;
     }
 
-    public void setTotalComparecimentos(Integer totalComparecimentos) {
-        this.totalComparecimentos = totalComparecimentos;
+    public void setRole(String role) {
+        this.role = role;
     }
 
-    public Integer getTotalPresenciais() {
-        return totalPresenciais;
+    public String getDepartamento() {
+        return departamento;
     }
 
-    public void setTotalPresenciais(Integer totalPresenciais) {
-        this.totalPresenciais = totalPresenciais;
+    public void setDepartamento(String departamento) {
+        this.departamento = departamento;
     }
 
-    public Integer getTotalVirtuais() {
-        return totalVirtuais;
+    public String getTelefone() {
+        return telefone;
     }
 
-    public void setTotalVirtuais(Integer totalVirtuais) {
-        this.totalVirtuais = totalVirtuais;
+    public void setTelefone(String telefone) {
+        this.telefone = telefone;
     }
 
-    public Integer getTotalJustificativas() {
-        return totalJustificativas;
+    public String getAvatar() {
+        return avatar;
     }
 
-    public void setTotalJustificativas(Integer totalJustificativas) {
-        this.totalJustificativas = totalJustificativas;
+    public void setAvatar(String avatar) {
+        this.avatar = avatar;
     }
 
-    public Double getPercentualConformidade() {
-        return percentualConformidade;
+    public Boolean getAtivo() {
+        return ativo;
     }
 
-    public void setPercentualConformidade(Double percentualConformidade) {
-        this.percentualConformidade = percentualConformidade;
-    }
-
-    public String getComarca() {
-        return comarca;
-    }
-
-    public void setComarca(String comarca) {
-        this.comarca = comarca;
+    public void setAtivo(Boolean ativo) {
+        this.ativo = ativo;
     }
 
     @Override
     public String toString() {
-        return "RelatorioComparecimentoResponse{" +
-                "dataInicio=" + dataInicio +
-                ", dataFim=" + dataFim +
-                ", totalPessoas=" + totalPessoas +
-                ", totalComparecimentos=" + totalComparecimentos +
-                ", totalPresenciais=" + totalPresenciais +
-                ", totalVirtuais=" + totalVirtuais +
-                ", totalJustificativas=" + totalJustificativas +
-                ", percentualConformidade=" + percentualConformidade +
-                ", comarca='" + comarca + '\'' +
+        return "UserInfoResponse{" +
+                "id=" + id +
+                ", nome='" + nome + '\'' +
+                ", email='" + email + '\'' +
+                ", role='" + role + '\'' +
+                ", departamento='" + departamento + '\'' +
+                ", ativo=" + ativo +
                 '}';
     }
 }

@@ -291,7 +291,7 @@ public class AuthService {
         }
     }
 
-    // === MÉTODOS AUXILIARES ===
+
 
     private String extractTokenFromHeader(String authHeader) {
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
