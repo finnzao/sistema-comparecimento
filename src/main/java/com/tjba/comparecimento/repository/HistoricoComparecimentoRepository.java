@@ -190,13 +190,14 @@ public interface HistoricoComparecimentoRepository extends JpaRepository<Histori
     /**
      * Calcular tempo médio entre comparecimentos
      */
-    @Query("SELECT AVG(FUNCTION('DATE_PART', 'day', h2.dataComparecimento - h1.dataComparecimento)) " +
-            "FROM HistoricoComparecimento h1, HistoricoComparecimento h2 " +
-            "WHERE h1.pessoaMonitorada = h2.pessoaMonitorada " +
-            "AND h1.dataComparecimento < h2.dataComparecimento " +
-            "AND h1.tipoValidacao != :tipoExcluido " +
-            "AND h2.tipoValidacao != :tipoExcluido")
-    Double calcularTempoMedioEntreComparecimentos(@Param("tipoExcluido") TipoValidacao tipoExcluido);
+    @Query(value = "SELECT AVG(CAST(h2.data_comparecimento - h1.data_comparecimento AS INTEGER)) " +
+            "FROM historico_comparecimentos h1, historico_comparecimentos h2 " +
+            "WHERE h1.pessoa_monitorada_id = h2.pessoa_monitorada_id " +
+            "AND h1.data_comparecimento < h2.data_comparecimento " +
+            "AND h1.tipo_validacao != ?1 " +
+            "AND h2.tipo_validacao != ?1",
+            nativeQuery = true)
+    Double calcularTempoMedioEntreComparecimentos(String tipoExcluido);
 
     /**
      * Buscar comparecimentos virtuais com detalhes
