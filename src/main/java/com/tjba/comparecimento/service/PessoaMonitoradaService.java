@@ -251,7 +251,7 @@ public class PessoaMonitoradaService {
         LocalDate hoje = LocalDate.now();
 
         // 1. Buscar pessoas com próximo comparecimento vencido
-        List<PessoaMonitorada> pessoasVencidas = pessoaRepository.findComProximoComparecimentoVencido(hoje);
+        List<PessoaMonitorada> pessoasVencidas = pessoaRepository.findComProximoComparecimentoVencido(hoje,StatusComparecimento.EM_CONFORMIDADE);
 
         // 2. Atualizar status para inadimplente
         for (PessoaMonitorada pessoa : pessoasVencidas) {

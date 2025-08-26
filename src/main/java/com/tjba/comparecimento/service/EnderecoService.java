@@ -16,6 +16,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 /**
  * Service para gerenciamento de endereços.
  */
@@ -288,6 +292,10 @@ public class EnderecoService {
                 endereco.getEnderecoResumido(),
                 endereco.getPessoaMonitorada().getId()
         );
+    }
+
+    public void setPessoaRepository(PessoaMonitoradaRepository pessoaRepository) {
+        this.pessoaRepository = pessoaRepository;
     }
 
     // === CLASSE AUXILIAR PARA RESPONSE DA API VIACEP ===

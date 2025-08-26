@@ -1,27 +1,31 @@
 package com.tjba.comparecimento.service;
 
+import com.tjba.comparecimento.dto.response.RelatorioEstatisticoResponse;
+import com.tjba.comparecimento.dto.response.RelatorioInadimplentesResponse;
 import com.tjba.comparecimento.entity.HistoricoComparecimento;
 import com.tjba.comparecimento.entity.PessoaMonitorada;
 import com.tjba.comparecimento.entity.enums.StatusComparecimento;
+import com.tjba.comparecimento.entity.enums.TipoValidacao;
 import com.tjba.comparecimento.exception.BusinessException;
 import com.tjba.comparecimento.repository.HistoricoComparecimentoRepository;
 import com.tjba.comparecimento.repository.PessoaMonitoradaRepository;
-import org.apache.poi.ss.usermodel.*;
-import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 /**
- * Service para geração de relatórios em Excel e PDF.
+ * Service para geração de relatórios em formatos CSV, JSON e HTML.
  */
 @Service
 @Transactional(readOnly = true)
@@ -34,11 +38,12 @@ public class RelatorioService {
     private PessoaMonitoradaRepository pessoaRepository;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter DATETIME_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
 
     /**
-     * Gerar relatório de comparecimentos em Excel
+     * Gerar relatório de comparecimentos em CSV
      */
-    public Resource gerarRelatorioComparecimentosExcel(LocalDate dataInicio, LocalDate dataFim, String comarca) {
+    public Resource gerarRelatorioComparecimentosCSV(LocalDate dataInicio, LocalDate dataFim, String comarca) {
         try {
             // 1. Validar período
             validatePeriodo(dataInicio, dataFim);
@@ -47,122 +52,151 @@ public class RelatorioService {
             List<HistoricoComparecimento> comparecimentos = historicoRepository.findByPeriodoWithFiltersForReport(
                     dataInicio, dataFim, comarca);
 
-            // 3. Criar workbook
-            Workbook workbook = new XSSFWorkbook();
+            // 3. Gerar CSV
+            StringBuilder csv = new StringBuilder();
 
-            // 4. Criar planilha principal
-            Sheet sheet = workbook.createSheet("Comparecimentos");
+            // Header
+            csv.append("Data,Horário,Nome,CPF,Tipo,Validado Por,Processo,Vara,Comarca,Observações\n");
 
-            // 5. Criar estilos
-            CellStyle headerStyle = createHeaderStyle(workbook);
-            CellStyle dateStyle = createDateStyle(workbook);
-            CellStyle centerStyle = createCenterStyle(workbook);
+            // Dados
+            for (HistoricoComparecimento comp : comparecimentos) {
+                csv.append(formatCsvValue(comp.getDataComparecimento().format(DATE_FORMATTER)))
+                        .append(",")
+                        .append(formatCsvValue(comp.getHoraComparecimento() != null ? comp.getHoraComparecimento().toString() : ""))
+                        .append(",")
+                        .append(formatCsvValue(comp.getPessoaMonitorada().getNomeCompleto()))
+                        .append(",")
+                        .append(formatCsvValue(comp.getPessoaMonitorada().getCpf()))
+                        .append(",")
+                        .append(formatCsvValue(comp.getTipoValidacao().getLabel()))
+                        .append(",")
+                        .append(formatCsvValue(comp.getValidadoPor()))
+                        .append(",")
+                        .append(formatCsvValue(comp.getPessoaMonitorada().getProcessoJudicial() != null ?
+                                comp.getPessoaMonitorada().getProcessoJudicial().getNumeroProcesso() : ""))
+                        .append(",")
+                        .append(formatCsvValue(comp.getPessoaMonitorada().getProcessoJudicial() != null ?
+                                comp.getPessoaMonitorada().getProcessoJudicial().getVara() : ""))
+                        .append(",")
+                        .append(formatCsvValue(comp.getPessoaMonitorada().getProcessoJudicial() != null ?
+                                comp.getPessoaMonitorada().getProcessoJudicial().getComarca() : ""))
+                        .append(",")
+                        .append(formatCsvValue(comp.getObservacoes()))
+                        .append("\n");
+            }
 
-            // 6. Criar cabeçalho
-            createComparecimentosHeader(sheet, headerStyle, dataInicio, dataFim, comarca);
+            byte[] csvBytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+            return new ByteArrayResource(csvBytes);
 
-            // 7. Preencher dados
-            fillComparecimentosData(sheet, comparecimentos, dateStyle, centerStyle);
-
-            // 8. Auto-ajustar colunas
-            autoSizeColumns(sheet, 11);
-
-            // 9. Criar planilha de resumo
-            createResumoSheet(workbook, comparecimentos, dataInicio, dataFim, comarca);
-
-            // 10. Converter para bytes
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            workbook.write(outputStream);
-            workbook.close();
-
-            return new ByteArrayResource(outputStream.toByteArray());
-
-        } catch (IOException e) {
-            throw new BusinessException("Erro ao gerar relatório: " + e.getMessage());
+        } catch (Exception e) {
+            throw new BusinessException("Erro ao gerar relatório CSV: " + e.getMessage());
         }
     }
 
     /**
-     * Gerar relatório de pessoas em Excel
+     * Gerar relatório de pessoas em CSV
      */
-    public Resource gerarRelatorioPessoasExcel(String comarca, String status) {
+    public Resource gerarRelatorioPessoasCSV(String comarca, String status) {
         try {
             // 1. Buscar dados
             List<PessoaMonitorada> pessoas = pessoaRepository.findForRelatorio(comarca, status);
 
-            // 2. Criar workbook
-            Workbook workbook = new XSSFWorkbook();
-            Sheet sheet = workbook.createSheet("Pessoas Monitoradas");
+            // 2. Gerar CSV
+            StringBuilder csv = new StringBuilder();
 
-            // 3. Criar estilos
-            CellStyle headerStyle = createHeaderStyle(workbook);
-            CellStyle dateStyle = createDateStyle(workbook);
-            CellStyle centerStyle = createCenterStyle(workbook);
+            // Header
+            csv.append("Nome,CPF,RG,Contato,Status,Processo,Vara,Comarca,Próximo Comparecimento,Periodicidade,Observações\n");
 
-            // 4. Criar cabeçalho
-            createPessoasHeader(sheet, headerStyle, comarca, status);
+            // Dados
+            for (PessoaMonitorada pessoa : pessoas) {
+                csv.append(formatCsvValue(pessoa.getNomeCompleto()))
+                        .append(",")
+                        .append(formatCsvValue(pessoa.getCpf()))
+                        .append(",")
+                        .append(formatCsvValue(pessoa.getRg()))
+                        .append(",")
+                        .append(formatCsvValue(pessoa.getContato()))
+                        .append(",")
+                        .append(formatCsvValue(pessoa.getStatus().getLabel()))
+                        .append(",")
+                        .append(formatCsvValue(pessoa.getProcessoJudicial() != null ?
+                                pessoa.getProcessoJudicial().getNumeroProcesso() : ""))
+                        .append(",")
+                        .append(formatCsvValue(pessoa.getProcessoJudicial() != null ?
+                                pessoa.getProcessoJudicial().getVara() : ""))
+                        .append(",")
+                        .append(formatCsvValue(pessoa.getProcessoJudicial() != null ?
+                                pessoa.getProcessoJudicial().getComarca() : ""))
+                        .append(",")
+                        .append(formatCsvValue(pessoa.getRegimeComparecimento() != null &&
+                                pessoa.getRegimeComparecimento().getProximoComparecimento() != null ?
+                                pessoa.getRegimeComparecimento().getProximoComparecimento().format(DATE_FORMATTER) : ""))
+                        .append(",")
+                        .append(formatCsvValue(pessoa.getRegimeComparecimento() != null ?
+                                pessoa.getRegimeComparecimento().getPeriodicidadeDescricao() : ""))
+                        .append(",")
+                        .append(formatCsvValue(pessoa.getObservacoes()))
+                        .append("\n");
+            }
 
-            // 5. Preencher dados
-            fillPessoasData(sheet, pessoas, dateStyle, centerStyle);
+            byte[] csvBytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+            return new ByteArrayResource(csvBytes);
 
-            // 6. Auto-ajustar colunas
-            autoSizeColumns(sheet, 12);
-
-            // 7. Converter para bytes
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            workbook.write(outputStream);
-            workbook.close();
-
-            return new ByteArrayResource(outputStream.toByteArray());
-
-        } catch (IOException e) {
-            throw new BusinessException("Erro ao gerar relatório: " + e.getMessage());
+        } catch (Exception e) {
+            throw new BusinessException("Erro ao gerar relatório CSV: " + e.getMessage());
         }
     }
 
     /**
-     * Gerar relatório de inadimplentes em Excel
+     * Gerar relatório de inadimplentes em JSON estruturado
      */
-    public Resource gerarRelatorioInadimplentesExcel() {
+    public RelatorioInadimplentesResponse gerarRelatorioInadimplentes() {
         try {
             // 1. Buscar pessoas inadimplentes
             List<PessoaMonitorada> inadimplentes = pessoaRepository.findByStatus(StatusComparecimento.INADIMPLENTE);
+            LocalDate hoje = LocalDate.now();
 
-            // 2. Criar workbook
-            Workbook workbook = new XSSFWorkbook();
-            Sheet sheet = workbook.createSheet("Pessoas Inadimplentes");
+            // 2. Processar dados
+            var dadosInadimplentes = inadimplentes.stream()
+                    .map(pessoa -> {
+                        Optional<HistoricoComparecimento> ultimoComparecimento = historicoRepository.findLastComparecimentoByPessoa(pessoa.getId());
 
-            // 3. Criar estilos
-            CellStyle headerStyle = createHeaderStyle(workbook);
-            CellStyle dateStyle = createDateStyle(workbook);
-            CellStyle centerStyle = createCenterStyle(workbook);
-            CellStyle alertStyle = createAlertStyle(workbook);
+                        return Map.of(
+                                "id", pessoa.getId(),
+                                "nome", pessoa.getNomeCompleto(),
+                                "cpf", pessoa.getCpf() != null ? pessoa.getCpf() : "",
+                                "contato", pessoa.getContato() != null ? pessoa.getContato() : "",
+                                "processo", pessoa.getProcessoJudicial() != null ? pessoa.getProcessoJudicial().getNumeroProcesso() : "",
+                                "comarca", pessoa.getProcessoJudicial() != null ? pessoa.getProcessoJudicial().getComarca() : "",
+                                "ultimoComparecimento", ultimoComparecimento.map(h -> h.getDataComparecimento().format(DATE_FORMATTER)).orElse(""),
+                                "proximoComparecimento", pessoa.getRegimeComparecimento() != null && pessoa.getRegimeComparecimento().getProximoComparecimento() != null ?
+                                        pessoa.getRegimeComparecimento().getProximoComparecimento().format(DATE_FORMATTER) : "",
+                                "diasAtraso", pessoa.getRegimeComparecimento() != null ? pessoa.getRegimeComparecimento().getDiasAtraso() : 0,
+                                "observacoes", pessoa.getObservacoes() != null ? pessoa.getObservacoes() : ""
+                        );
+                    })
+                    .collect(Collectors.toList());
 
-            // 4. Criar cabeçalho
-            createInadimplentesHeader(sheet, headerStyle);
+            // 3. Montar resposta estruturada
+            return RelatorioInadimplentesResponse.builder()
+                    .tipoRelatorio("INADIMPLENTES")
+                    .dataGeracao(LocalDateTime.now())
+                    .totalRegistros(inadimplentes.size())
+                    .resumo(Map.of(
+                            "totalInadimplentes", inadimplentes.size(),
+                            "dataReferencia", hoje.format(DATE_FORMATTER)
+                    ))
+                    .build();
 
-            // 5. Preencher dados
-            fillInadimplentesData(sheet, inadimplentes, dateStyle, centerStyle, alertStyle);
-
-            // 6. Auto-ajustar colunas
-            autoSizeColumns(sheet, 10);
-
-            // 7. Converter para bytes
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            workbook.write(outputStream);
-            workbook.close();
-
-            return new ByteArrayResource(outputStream.toByteArray());
-
-        } catch (IOException e) {
-            throw new BusinessException("Erro ao gerar relatório: " + e.getMessage());
+        } catch (Exception e) {
+            throw new BusinessException("Erro ao gerar relatório de inadimplentes: " + e.getMessage());
         }
     }
 
     /**
-     * Gerar relatório estatístico por comarca em Excel
+     * Gerar relatório estatístico por comarca
      */
-    public Resource gerarRelatorioEstatisticasComarcaExcel(LocalDate dataInicio, LocalDate dataFim) {
+    public RelatorioEstatisticoResponse gerarRelatorioEstatisticasComarca(LocalDate dataInicio, LocalDate dataFim) {
         try {
             // 1. Validar período
             validatePeriodo(dataInicio, dataFim);
@@ -170,33 +204,251 @@ public class RelatorioService {
             // 2. Buscar comarcas
             List<String> comarcas = pessoaRepository.findDistinctComarcas();
 
-            // 3. Criar workbook
-            Workbook workbook = new XSSFWorkbook();
-            Sheet sheet = workbook.createSheet("Estatísticas por Comarca");
+            // 3. Calcular estatísticas por comarca
+            var estatisticasPorComarca = comarcas.stream()
+                    .map(comarca -> {
+                        Long totalPessoas = pessoaRepository.countByComarca(comarca);
+                        Long emConformidade = pessoaRepository.countByComarcaAndStatus(comarca, StatusComparecimento.EM_CONFORMIDADE);
+                        Long inadimplentes = pessoaRepository.countByComarcaAndStatus(comarca, StatusComparecimento.INADIMPLENTE);
+                        Long comparecimentosPeriodo = historicoRepository.countByPeriodo(dataInicio, dataFim, comarca, null);
 
-            // 4. Criar estilos
-            CellStyle headerStyle = createHeaderStyle(workbook);
-            CellStyle numberStyle = createNumberStyle(workbook);
-            CellStyle percentStyle = createPercentStyle(workbook);
+                        Double percentualConformidade = totalPessoas > 0 ?
+                                (emConformidade.doubleValue() / totalPessoas.doubleValue()) * 100.0 : 0.0;
 
-            // 5. Criar cabeçalho
-            createEstatisticasHeader(sheet, headerStyle, dataInicio, dataFim);
+                        return Map.<String, Object>of(
+                                "comarca", comarca,
+                                "totalPessoas", totalPessoas,
+                                "emConformidade", emConformidade,
+                                "inadimplentes", inadimplentes,
+                                "percentualConformidade", Math.round(percentualConformidade * 100.0) / 100.0,
+                                "comparecimentosPeriodo", comparecimentosPeriodo,
+                                "taxaComparecimento", totalPessoas > 0 ?
+                                        Math.round((comparecimentosPeriodo.doubleValue() / totalPessoas.doubleValue()) * 100.0) / 100.0 : 0.0
+                        );
+                    })
+                    .collect(Collectors.toList());
 
-            // 6. Preencher dados
-            fillEstatisticasData(sheet, comarcas, dataInicio, dataFim, numberStyle, percentStyle);
+            // 4. Calcular totais gerais
+            Long totalGeralPessoas = pessoaRepository.count();
+            Long totalGeralConformidade = pessoaRepository.countByStatus(StatusComparecimento.EM_CONFORMIDADE);
+            Long totalGeralInadimplentes = pessoaRepository.countByStatus(StatusComparecimento.INADIMPLENTE);
+            Long totalGeralComparecimentos = historicoRepository.countByPeriodo(dataInicio, dataFim, null, null);
 
-            // 7. Auto-ajustar colunas
-            autoSizeColumns(sheet, 8);
+            var resumoGeral = Map.<String, Object>of(
+                    "totalPessoas", totalGeralPessoas,
+                    "totalConformidade", totalGeralConformidade,
+                    "totalInadimplentes", totalGeralInadimplentes,
+                    "percentualGeralConformidade", totalGeralPessoas > 0 ?
+                            Math.round((totalGeralConformidade.doubleValue() / totalGeralPessoas.doubleValue()) * 100.0 * 100.0) / 100.0 : 0.0,
+                    "totalComparecimentosPeriodo", totalGeralComparecimentos,
+                    "totalComarcas", comarcas.size()
+            );
 
-            // 8. Converter para bytes
-            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-            workbook.write(outputStream);
-            workbook.close();
+            // 5. Montar resposta
+            return RelatorioEstatisticoResponse.builder()
+                    .tipoRelatorio("ESTATISTICAS_COMARCA")
+                    .periodoInicio(dataInicio)
+                    .periodoFim(dataFim)
+                    .estatisticasPorComarca(estatisticasPorComarca)
+                    .resumoGeral(resumoGeral)
+                    .build();
 
-            return new ByteArrayResource(outputStream.toByteArray());
+        } catch (Exception e) {
+            throw new BusinessException("Erro ao gerar relatório estatístico: " + e.getMessage());
+        }
+    }
 
-        } catch (IOException e) {
-            throw new BusinessException("Erro ao gerar relatório: " + e.getMessage());
+    /**
+     * Gerar relatório HTML de comparecimentos
+     */
+    public Resource gerarRelatorioComparecimentosHTML(LocalDate dataInicio, LocalDate dataFim, String comarca) {
+        try {
+            // 1. Validar período
+            validatePeriodo(dataInicio, dataFim);
+
+            // 2. Buscar dados
+            List<HistoricoComparecimento> comparecimentos = historicoRepository.findByPeriodoWithFiltersForReport(
+                    dataInicio, dataFim, comarca);
+
+            // 3. Gerar HTML
+            StringBuilder html = new StringBuilder();
+
+            html.append("""
+                <!DOCTYPE html>
+                <html lang="pt-BR">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>Relatório de Comparecimentos</title>
+                    <style>
+                        body { font-family: Arial, sans-serif; margin: 20px; }
+                        .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+                        .info { margin: 20px 0; }
+                        .info strong { color: #2563eb; }
+                        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                        th { background-color: #2563eb; color: white; font-weight: bold; }
+                        tr:nth-child(even) { background-color: #f9f9f9; }
+                        .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #666; }
+                        .summary { background-color: #e3f2fd; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>RELATÓRIO DE COMPARECIMENTOS</h1>
+                        <h3>Sistema de Controle de Comparecimento - TJBA</h3>
+                    </div>
+                """);
+
+            html.append("<div class=\"info\">")
+                    .append("<p><strong>Período:</strong> ")
+                    .append(dataInicio.format(DATE_FORMATTER))
+                    .append(" a ")
+                    .append(dataFim.format(DATE_FORMATTER))
+                    .append("</p>");
+
+            if (comarca != null) {
+                html.append("<p><strong>Comarca:</strong> ").append(comarca).append("</p>");
+            }
+
+            html.append("<p><strong>Data de Geração:</strong> ")
+                    .append(LocalDateTime.now().format(DATETIME_FORMATTER))
+                    .append("</p>")
+                    .append("<p><strong>Total de Registros:</strong> ")
+                    .append(comparecimentos.size())
+                    .append("</p>")
+                    .append("</div>");
+
+            // Resumo por tipo
+            Map<TipoValidacao, Long> resumoPorTipo = comparecimentos.stream()
+                    .collect(Collectors.groupingBy(
+                            HistoricoComparecimento::getTipoValidacao,
+                            Collectors.counting()
+                    ));
+
+            html.append("<div class=\"summary\">")
+                    .append("<h3>Resumo por Tipo de Validação</h3>");
+
+            for (Map.Entry<TipoValidacao, Long> entry : resumoPorTipo.entrySet()) {
+                html.append("<p><strong>")
+                        .append(entry.getKey().getLabel())
+                        .append(":</strong> ")
+                        .append(entry.getValue())
+                        .append(" registro")
+                        .append(entry.getValue() > 1 ? "s" : "")
+                        .append("</p>");
+            }
+            html.append("</div>");
+
+            // Tabela de dados
+            html.append("""
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Data</th>
+                            <th>Horário</th>
+                            <th>Nome</th>
+                            <th>CPF</th>
+                            <th>Tipo</th>
+                            <th>Processo</th>
+                            <th>Comarca</th>
+                            <th>Validado Por</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                """);
+
+            for (HistoricoComparecimento comp : comparecimentos) {
+                html.append("<tr>")
+                        .append("<td>").append(comp.getDataComparecimento().format(DATE_FORMATTER)).append("</td>")
+                        .append("<td>").append(comp.getHoraComparecimento() != null ? comp.getHoraComparecimento().toString() : "").append("</td>")
+                        .append("<td>").append(escapeHtml(comp.getPessoaMonitorada().getNomeCompleto())).append("</td>")
+                        .append("<td>").append(comp.getPessoaMonitorada().getCpf() != null ? comp.getPessoaMonitorada().getCpf() : "").append("</td>")
+                        .append("<td>").append(comp.getTipoValidacao().getLabel()).append("</td>")
+                        .append("<td>").append(comp.getPessoaMonitorada().getProcessoJudicial() != null ?
+                                comp.getPessoaMonitorada().getProcessoJudicial().getNumeroProcesso() : "").append("</td>")
+                        .append("<td>").append(comp.getPessoaMonitorada().getProcessoJudicial() != null ?
+                                comp.getPessoaMonitorada().getProcessoJudicial().getComarca() : "").append("</td>")
+                        .append("<td>").append(escapeHtml(comp.getValidadoPor())).append("</td>")
+                        .append("</tr>");
+            }
+
+            html.append("""
+                    </tbody>
+                </table>
+                
+                <div class="footer">
+                    <p>Relatório gerado automaticamente pelo Sistema de Controle de Comparecimento</p>
+                    <p>Tribunal de Justiça da Bahia - TJBA</p>
+                </div>
+                
+                </body>
+                </html>
+                """);
+
+            byte[] htmlBytes = html.toString().getBytes(StandardCharsets.UTF_8);
+            return new ByteArrayResource(htmlBytes);
+
+        } catch (Exception e) {
+            throw new BusinessException("Erro ao gerar relatório HTML: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Gerar dados estruturados para relatório personalizado
+     */
+    public Map<String, Object> gerarDadosRelatorioPersonalizado(
+            LocalDate dataInicio,
+            LocalDate dataFim,
+            String comarca,
+            List<String> tiposValidacao,
+            boolean incluirEstatisticas) {
+
+        try {
+            validatePeriodo(dataInicio, dataFim);
+
+            // Buscar comparecimentos
+            List<HistoricoComparecimento> comparecimentos = historicoRepository.findByPeriodoWithFiltersForReport(
+                    dataInicio, dataFim, comarca);
+
+            // Filtrar por tipos de validação se especificado
+            if (tiposValidacao != null && !tiposValidacao.isEmpty()) {
+                List<TipoValidacao> tipos = tiposValidacao.stream()
+                        .map(TipoValidacao::valueOf)
+                        .collect(Collectors.toList());
+
+                comparecimentos = comparecimentos.stream()
+                        .filter(comp -> tipos.contains(comp.getTipoValidacao()))
+                        .collect(Collectors.toList());
+            }
+
+            // Dados básicos
+            var dadosRelatorio = Map.<String, Object>of(
+                    "metadados", Map.of(
+                            "dataInicio", dataInicio.format(DATE_FORMATTER),
+                            "dataFim", dataFim.format(DATE_FORMATTER),
+                            "comarca", comarca != null ? comarca : "TODAS",
+                            "totalRegistros", comparecimentos.size(),
+                            "dataGeracao", LocalDateTime.now().format(DATETIME_FORMATTER)
+                    ),
+                    "comparecimentos", comparecimentos.stream()
+                            .map(this::mapearComparecimentoParaRelatorio)
+                            .collect(Collectors.toList())
+            );
+
+            // Adicionar estatísticas se solicitado
+            if (incluirEstatisticas) {
+                var estatisticas = calcularEstatisticasComparecimentos(comparecimentos);
+                return Map.of(
+                        "dados", dadosRelatorio,
+                        "estatisticas", estatisticas
+                );
+            }
+
+            return Map.of("dados", dadosRelatorio);
+
+        } catch (Exception e) {
+            throw new BusinessException("Erro ao gerar dados do relatório: " + e.getMessage());
         }
     }
 
@@ -212,408 +464,84 @@ public class RelatorioService {
         }
     }
 
-    private CellStyle createHeaderStyle(Workbook workbook) {
-        CellStyle style = workbook.createCellStyle();
-        Font font = workbook.createFont();
-        font.setBold(true);
-        font.setColor(IndexedColors.WHITE.getIndex());
-        style.setFont(font);
-        style.setFillForegroundColor(IndexedColors.DARK_BLUE.getIndex());
-        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        style.setAlignment(HorizontalAlignment.CENTER);
-        style.setVerticalAlignment(VerticalAlignment.CENTER);
-        style.setBorderBottom(BorderStyle.THIN);
-        style.setBorderTop(BorderStyle.THIN);
-        style.setBorderRight(BorderStyle.THIN);
-        style.setBorderLeft(BorderStyle.THIN);
-        return style;
-    }
-
-    private CellStyle createDateStyle(Workbook workbook) {
-        CellStyle style = workbook.createCellStyle();
-        CreationHelper createHelper = workbook.getCreationHelper();
-        style.setDataFormat(createHelper.createDataFormat().getFormat("dd/mm/yyyy"));
-        style.setAlignment(HorizontalAlignment.CENTER);
-        return style;
-    }
-
-    private CellStyle createCenterStyle(Workbook workbook) {
-        CellStyle style = workbook.createCellStyle();
-        style.setAlignment(HorizontalAlignment.CENTER);
-        return style;
-    }
-
-    private CellStyle createAlertStyle(Workbook workbook) {
-        CellStyle style = workbook.createCellStyle();
-        style.setFillForegroundColor(IndexedColors.LIGHT_ORANGE.getIndex());
-        style.setFillPattern(FillPatternType.SOLID_FOREGROUND);
-        style.setAlignment(HorizontalAlignment.CENTER);
-        return style;
-    }
-
-    private CellStyle createNumberStyle(Workbook workbook) {
-        CellStyle style = workbook.createCellStyle();
-        style.setAlignment(HorizontalAlignment.RIGHT);
-        return style;
-    }
-
-    private CellStyle createPercentStyle(Workbook workbook) {
-        CellStyle style = workbook.createCellStyle();
-        CreationHelper createHelper = workbook.getCreationHelper();
-        style.setDataFormat(createHelper.createDataFormat().getFormat("0.00%"));
-        style.setAlignment(HorizontalAlignment.RIGHT);
-        return style;
-    }
-
-    private void createComparecimentosHeader(Sheet sheet, CellStyle headerStyle,
-                                             LocalDate dataInicio, LocalDate dataFim, String comarca) {
-        // Título
-        Row titleRow = sheet.createRow(0);
-        Cell titleCell = titleRow.createCell(0);
-        titleCell.setCellValue("RELATÓRIO DE COMPARECIMENTOS");
-        titleCell.setCellStyle(headerStyle);
-
-        // Período
-        Row periodRow = sheet.createRow(1);
-        Cell periodCell = periodRow.createCell(0);
-        String periodo = "Período: " + dataInicio.format(DATE_FORMATTER) + " a " + dataFim.format(DATE_FORMATTER);
-        if (comarca != null) {
-            periodo += " - Comarca: " + comarca;
+    private String formatCsvValue(String value) {
+        if (value == null) {
+            return "";
         }
-        periodCell.setCellValue(periodo);
 
-        // Headers das colunas
-        Row headerRow = sheet.createRow(3);
-        String[] headers = {
-                "Data", "Hora", "Nome", "CPF", "Tipo", "Validado Por",
-                "Processo", "Vara", "Comarca", "Observações"
-        };
-
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(headerStyle);
+        // Escapar aspas e adicionar aspas se contém vírgula, quebra de linha ou aspas
+        String escaped = value.replace("\"", "\"\"");
+        if (escaped.contains(",") || escaped.contains("\n") || escaped.contains("\"")) {
+            return "\"" + escaped + "\"";
         }
+
+        return escaped;
     }
 
-    private void fillComparecimentosData(Sheet sheet, List<HistoricoComparecimento> comparecimentos,
-                                         CellStyle dateStyle, CellStyle centerStyle) {
-        int rowNum = 4;
-
-        for (HistoricoComparecimento comp : comparecimentos) {
-            Row row = sheet.createRow(rowNum++);
-
-            // Data
-            Cell dateCell = row.createCell(0);
-            dateCell.setCellValue(comp.getDataComparecimento());
-            dateCell.setCellStyle(dateStyle);
-
-            // Hora
-            Cell timeCell = row.createCell(1);
-            if (comp.getHoraComparecimento() != null) {
-                timeCell.setCellValue(comp.getHoraComparecimento().toString());
-            }
-            timeCell.setCellStyle(centerStyle);
-
-            // Nome
-            row.createCell(2).setCellValue(comp.getPessoaMonitorada().getNomeCompleto());
-
-            // CPF
-            Cell cpfCell = row.createCell(3);
-            cpfCell.setCellValue(comp.getPessoaMonitorada().getCpf());
-            cpfCell.setCellStyle(centerStyle);
-
-            // Tipo
-            Cell tipoCell = row.createCell(4);
-            tipoCell.setCellValue(comp.getTipoValidacao().getLabel());
-            tipoCell.setCellStyle(centerStyle);
-
-            // Validado por
-            row.createCell(5).setCellValue(comp.getValidadoPor());
-
-            // Processo
-            ProcessoJudicial processo = comp.getPessoaMonitorada().getProcessoJudicial();
-            if (processo != null) {
-                row.createCell(6).setCellValue(processo.getNumeroProcesso());
-                row.createCell(7).setCellValue(processo.getVara());
-                row.createCell(8).setCellValue(processo.getComarca());
-            }
-
-            // Observações
-            row.createCell(9).setCellValue(comp.getObservacoes());
+    private String escapeHtml(String text) {
+        if (text == null) {
+            return "";
         }
+
+        return text.replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#x27;");
     }
 
-    private void createPessoasHeader(Sheet sheet, CellStyle headerStyle, String comarca, String status) {
-        // Título
-        Row titleRow = sheet.createRow(0);
-        Cell titleCell = titleRow.createCell(0);
-        titleCell.setCellValue("RELATÓRIO DE PESSOAS MONITORADAS");
-        titleCell.setCellStyle(headerStyle);
-
-        // Filtros
-        Row filterRow = sheet.createRow(1);
-        Cell filterCell = filterRow.createCell(0);
-        String filtros = "Filtros aplicados:";
-        if (comarca != null) filtros += " Comarca: " + comarca;
-        if (status != null) filtros += " Status: " + status;
-        filterCell.setCellValue(filtros);
-
-        // Headers das colunas
-        Row headerRow = sheet.createRow(3);
-        String[] headers = {
-                "Nome", "CPF", "RG", "Contato", "Status", "Processo",
-                "Vara", "Comarca", "Próximo Comparecimento", "Periodicidade", "Observações"
-        };
-
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(headerStyle);
-        }
+    private Map<String, Object> mapearComparecimentoParaRelatorio(HistoricoComparecimento comp) {
+        return Map.of(
+                "id", comp.getId(),
+                "data", comp.getDataComparecimento().format(DATE_FORMATTER),
+                "horario", comp.getHoraComparecimento() != null ? comp.getHoraComparecimento().toString() : "",
+                "pessoa", Map.of(
+                        "id", comp.getPessoaMonitorada().getId(),
+                        "nome", comp.getPessoaMonitorada().getNomeCompleto(),
+                        "cpf", comp.getPessoaMonitorada().getCpf() != null ? comp.getPessoaMonitorada().getCpf() : ""
+                ),
+                "processo", comp.getPessoaMonitorada().getProcessoJudicial() != null ? Map.of(
+                        "numero", comp.getPessoaMonitorada().getProcessoJudicial().getNumeroProcesso(),
+                        "vara", comp.getPessoaMonitorada().getProcessoJudicial().getVara(),
+                        "comarca", comp.getPessoaMonitorada().getProcessoJudicial().getComarca()
+                ) : Map.of(),
+                "validacao", Map.of(
+                        "tipo", comp.getTipoValidacao().name(),
+                        "tipoLabel", comp.getTipoValidacao().getLabel(),
+                        "validadoPor", comp.getValidadoPor()
+                ),
+                "observacoes", comp.getObservacoes() != null ? comp.getObservacoes() : ""
+        );
     }
 
-    private void fillPessoasData(Sheet sheet, List<PessoaMonitorada> pessoas,
-                                 CellStyle dateStyle, CellStyle centerStyle) {
-        int rowNum = 4;
+    private Map<String, Object> calcularEstatisticasComparecimentos(List<HistoricoComparecimento> comparecimentos) {
+        // Estatísticas por tipo
+        Map<String, Long> porTipo = comparecimentos.stream()
+                .collect(Collectors.groupingBy(
+                        comp -> comp.getTipoValidacao().getLabel(),
+                        Collectors.counting()
+                ));
 
-        for (PessoaMonitorada pessoa : pessoas) {
-            Row row = sheet.createRow(rowNum++);
+        // Estatísticas por comarca
+        Map<String, Long> porComarca = comparecimentos.stream()
+                .collect(Collectors.groupingBy(
+                        comp -> comp.getPessoaMonitorada().getProcessoJudicial() != null ?
+                                comp.getPessoaMonitorada().getProcessoJudicial().getComarca() : "SEM COMARCA",
+                        Collectors.counting()
+                ));
 
-            row.createCell(0).setCellValue(pessoa.getNomeCompleto());
+        // Estatísticas por validador
+        Map<String, Long> porValidador = comparecimentos.stream()
+                .collect(Collectors.groupingBy(
+                        HistoricoComparecimento::getValidadoPor,
+                        Collectors.counting()
+                ));
 
-            Cell cpfCell = row.createCell(1);
-            cpfCell.setCellValue(pessoa.getCpf());
-            cpfCell.setCellStyle(centerStyle);
-
-            row.createCell(2).setCellValue(pessoa.getRg());
-            row.createCell(3).setCellValue(pessoa.getContato());
-
-            Cell statusCell = row.createCell(4);
-            statusCell.setCellValue(pessoa.getStatus().getLabel());
-            statusCell.setCellStyle(centerStyle);
-
-            ProcessoJudicial processo = pessoa.getProcessoJudicial();
-            if (processo != null) {
-                row.createCell(5).setCellValue(processo.getNumeroProcesso());
-                row.createCell(6).setCellValue(processo.getVara());
-                row.createCell(7).setCellValue(processo.getComarca());
-            }
-
-            RegimeComparecimento regime = pessoa.getRegimeComparecimento();
-            if (regime != null) {
-                Cell proximoCell = row.createCell(8);
-                if (regime.getProximoComparecimento() != null) {
-                    proximoCell.setCellValue(regime.getProximoComparecimento());
-                    proximoCell.setCellStyle(dateStyle);
-                }
-
-                row.createCell(9).setCellValue(regime.getPeriodicidadeDescricao());
-            }
-
-            row.createCell(10).setCellValue(pessoa.getObservacoes());
-        }
-    }
-
-    private void createInadimplentesHeader(Sheet sheet, CellStyle headerStyle) {
-        Row titleRow = sheet.createRow(0);
-        Cell titleCell = titleRow.createCell(0);
-        titleCell.setCellValue("RELATÓRIO DE PESSOAS INADIMPLENTES");
-        titleCell.setCellStyle(headerStyle);
-
-        Row headerRow = sheet.createRow(2);
-        String[] headers = {
-                "Nome", "CPF", "Contato", "Processo", "Comarca",
-                "Último Comparecimento", "Próximo Comparecimento", "Dias em Atraso", "Observações"
-        };
-
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(headerStyle);
-        }
-    }
-
-    private void fillInadimplentesData(Sheet sheet, List<PessoaMonitorada> inadimplentes,
-                                       CellStyle dateStyle, CellStyle centerStyle, CellStyle alertStyle) {
-        int rowNum = 3;
-        LocalDate hoje = LocalDate.now();
-
-        for (PessoaMonitorada pessoa : inadimplentes) {
-            Row row = sheet.createRow(rowNum++);
-
-            row.createCell(0).setCellValue(pessoa.getNomeCompleto());
-
-            Cell cpfCell = row.createCell(1);
-            cpfCell.setCellValue(pessoa.getCpf());
-            cpfCell.setCellStyle(centerStyle);
-
-            row.createCell(2).setCellValue(pessoa.getContato());
-
-            ProcessoJudicial processo = pessoa.getProcessoJudicial();
-            if (processo != null) {
-                row.createCell(3).setCellValue(processo.getNumeroProcesso());
-                row.createCell(4).setCellValue(processo.getComarca());
-            }
-
-            RegimeComparecimento regime = pessoa.getRegimeComparecimento();
-            if (regime != null) {
-                // Último comparecimento
-                HistoricoComparecimento ultimo = historicoRepository.findLastComparecimentoByPessoa(pessoa.getId());
-                if (ultimo != null) {
-                    Cell ultimoCell = row.createCell(5);
-                    ultimoCell.setCellValue(ultimo.getDataComparecimento());
-                    ultimoCell.setCellStyle(dateStyle);
-                }
-
-                // Próximo comparecimento
-                Cell proximoCell = row.createCell(6);
-                if (regime.getProximoComparecimento() != null) {
-                    proximoCell.setCellValue(regime.getProximoComparecimento());
-                    proximoCell.setCellStyle(dateStyle);
-
-                    // Dias em atraso
-                    if (regime.getProximoComparecimento().isBefore(hoje)) {
-                        long diasAtraso = regime.getDiasAtraso();
-                        Cell atrasoCell = row.createCell(7);
-                        atrasoCell.setCellValue(diasAtraso);
-                        atrasoCell.setCellStyle(alertStyle);
-                    }
-                }
-            }
-
-            row.createCell(8).setCellValue(pessoa.getObservacoes());
-        }
-    }
-
-    private void createEstatisticasHeader(Sheet sheet, CellStyle headerStyle,
-                                          LocalDate dataInicio, LocalDate dataFim) {
-        Row titleRow = sheet.createRow(0);
-        Cell titleCell = titleRow.createCell(0);
-        titleCell.setCellValue("ESTATÍSTICAS POR COMARCA");
-        titleCell.setCellStyle(headerStyle);
-
-        Row periodRow = sheet.createRow(1);
-        Cell periodCell = periodRow.createCell(0);
-        periodCell.setCellValue("Período: " + dataInicio.format(DATE_FORMATTER) +
-                " a " + dataFim.format(DATE_FORMATTER));
-
-        Row headerRow = sheet.createRow(3);
-        String[] headers = {
-                "Comarca", "Total Pessoas", "Em Conformidade", "Inadimplentes",
-                "% Conformidade", "Comparecimentos Período", "Taxa Comparecimento"
-        };
-
-        for (int i = 0; i < headers.length; i++) {
-            Cell cell = headerRow.createCell(i);
-            cell.setCellValue(headers[i]);
-            cell.setCellStyle(headerStyle);
-        }
-    }
-
-    private void fillEstatisticasData(Sheet sheet, List<String> comarcas, LocalDate dataInicio, LocalDate dataFim,
-                                      CellStyle numberStyle, CellStyle percentStyle) {
-        int rowNum = 4;
-
-        for (String comarca : comarcas) {
-            Row row = sheet.createRow(rowNum++);
-
-            row.createCell(0).setCellValue(comarca);
-
-            // Estatísticas da comarca
-            Long totalPessoas = pessoaRepository.countByComarca(comarca);
-            Long emConformidade = pessoaRepository.countByComarcaAndStatus(comarca, StatusComparecimento.EM_CONFORMIDADE);
-            Long inadimplentes = pessoaRepository.countByComarcaAndStatus(comarca, StatusComparecimento.INADIMPLENTE);
-            Long comparecimentosPeriodo = historicoRepository.countByPeriodo(dataInicio, dataFim, comarca, null);
-
-            Cell totalCell = row.createCell(1);
-            totalCell.setCellValue(totalPessoas);
-            totalCell.setCellStyle(numberStyle);
-
-            Cell conformeCell = row.createCell(2);
-            conformeCell.setCellValue(emConformidade);
-            conformeCell.setCellStyle(numberStyle);
-
-            Cell inadimCell = row.createCell(3);
-            inadimCell.setCellValue(inadimplentes);
-            inadimCell.setCellStyle(numberStyle);
-
-            Cell percentCell = row.createCell(4);
-            if (totalPessoas > 0) {
-                double percent = emConformidade.doubleValue() / totalPessoas.doubleValue();
-                percentCell.setCellValue(percent);
-            } else {
-                percentCell.setCellValue(0);
-            }
-            percentCell.setCellStyle(percentStyle);
-
-            Cell compCell = row.createCell(5);
-            compCell.setCellValue(comparecimentosPeriodo);
-            compCell.setCellStyle(numberStyle);
-
-            // Taxa de comparecimento seria calculada baseada nos comparecimentos esperados vs realizados
-            Cell taxaCell = row.createCell(6);
-            taxaCell.setCellValue("N/A"); // Implementar cálculo conforme necessário
-        }
-    }
-
-    private void createResumoSheet(Workbook workbook, List<HistoricoComparecimento> comparecimentos,
-                                   LocalDate dataInicio, LocalDate dataFim, String comarca) {
-        Sheet resumoSheet = workbook.createSheet("Resumo");
-        CellStyle headerStyle = createHeaderStyle(workbook);
-        CellStyle numberStyle = createNumberStyle(workbook);
-
-        // Título
-        Row titleRow = resumoSheet.createRow(0);
-        titleRow.createCell(0).setCellValue("RESUMO EXECUTIVO");
-        titleRow.getCell(0).setCellStyle(headerStyle);
-
-        // Estatísticas
-        int rowNum = 2;
-
-        // Total de comparecimentos
-        Row totalRow = resumoSheet.createRow(rowNum++);
-        totalRow.createCell(0).setCellValue("Total de Comparecimentos:");
-        Cell totalCell = totalRow.createCell(1);
-        totalCell.setCellValue(comparecimentos.size());
-        totalCell.setCellStyle(numberStyle);
-
-        // Por tipo
-        long presenciais = comparecimentos.stream()
-                .filter(c -> c.getTipoValidacao() == TipoValidacao.PRESENCIAL)
-                .count();
-        long virtuais = comparecimentos.stream()
-                .filter(c -> c.getTipoValidacao() == TipoValidacao.ONLINE)
-                .count();
-        long justificativas = comparecimentos.stream()
-                .filter(c -> c.getTipoValidacao() == TipoValidacao.JUSTIFICADO)
-                .count();
-
-        Row presRow = resumoSheet.createRow(rowNum++);
-        presRow.createCell(0).setCellValue("Comparecimentos Presenciais:");
-        Cell presCell = presRow.createCell(1);
-        presCell.setCellValue(presenciais);
-        presCell.setCellStyle(numberStyle);
-
-        Row virtRow = resumoSheet.createRow(rowNum++);
-        virtRow.createCell(0).setCellValue("Comparecimentos Virtuais:");
-        Cell virtCell = virtRow.createCell(1);
-        virtCell.setCellValue(virtuais);
-        virtCell.setCellStyle(numberStyle);
-
-        Row justRow = resumoSheet.createRow(rowNum++);
-        justRow.createCell(0).setCellValue("Justificativas:");
-        Cell justCell = justRow.createCell(1);
-        justCell.setCellValue(justificativas);
-        justCell.setCellStyle(numberStyle);
-
-        // Auto-ajustar colunas
-        autoSizeColumns(resumoSheet, 2);
-    }
-
-    private void autoSizeColumns(Sheet sheet, int numColumns) {
-        for (int i = 0; i < numColumns; i++) {
-            sheet.autoSizeColumn(i);
-        }
+        return Map.of(
+                "porTipo", porTipo,
+                "porComarca", porComarca,
+                "porValidador", porValidador,
+                "totalComparecimentos", comparecimentos.size()
+        );
     }
 }

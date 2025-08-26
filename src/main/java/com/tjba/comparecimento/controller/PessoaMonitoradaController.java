@@ -4,7 +4,7 @@ import com.tjba.comparecimento.dto.request.CreatePessoaRequest;
 import com.tjba.comparecimento.dto.request.UpdatePessoaRequest;
 import com.tjba.comparecimento.dto.response.ApiResponse;
 import com.tjba.comparecimento.dto.response.PessoaDetalheResponse;
-import com.tjba.comparecimento.dto.response.PessoaResponse;
+//import com.tjba.comparecimento.dto.response.PessoaDetalheResponse;
 import com.tjba.comparecimento.entity.enums.StatusComparecimento;
 import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
@@ -29,7 +29,7 @@ public class PessoaMonitoradaController {
      * Listar pessoas com filtros e paginação
      */
     @GetMapping
-    public ResponseEntity<ApiResponse<Page<PessoaResponse>>> getAllPessoas(
+    public ResponseEntity<ApiResponse<Page<PessoaDetalheResponse>>> getAllPessoas(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(defaultValue = "nomeCompleto") String sortBy,
@@ -58,7 +58,7 @@ public class PessoaMonitoradaController {
      * Cadastrar nova pessoa
      */
     @PostMapping
-    public ResponseEntity<ApiResponse<PessoaResponse>> createPessoa(@Valid @RequestBody CreatePessoaRequest request) {
+    public ResponseEntity<ApiResponse<PessoaDetalheResponse>> createPessoa(@Valid @RequestBody CreatePessoaRequest request) {
         // TODO: pessoaService.createPessoa(request);
         return ResponseEntity.status(201)
                 .body(ApiResponse.created(null, "Pessoa cadastrada com sucesso"));
@@ -68,7 +68,7 @@ public class PessoaMonitoradaController {
      * Atualizar pessoa
      */
     @PutMapping("/{id}")
-    public ResponseEntity<ApiResponse<PessoaResponse>> updatePessoa(
+    public ResponseEntity<ApiResponse<PessoaDetalheResponse>> updatePessoa(
             @PathVariable Long id,
             @Valid @RequestBody UpdatePessoaRequest request) {
 
@@ -80,7 +80,7 @@ public class PessoaMonitoradaController {
      * Buscar pessoas com comparecimento hoje
      */
     @GetMapping("/comparecimentos-hoje")
-    public ResponseEntity<ApiResponse<List<PessoaResponse>>> getComparecimentosHoje() {
+    public ResponseEntity<ApiResponse<List<PessoaDetalheResponse>>> getComparecimentosHoje() {
         // TODO: pessoaService.findComparecimentosHoje();
         return ResponseEntity.ok(ApiResponse.success(null));
     }
@@ -89,7 +89,7 @@ public class PessoaMonitoradaController {
      * Buscar pessoas em atraso
      */
     @GetMapping("/atrasados")
-    public ResponseEntity<ApiResponse<List<PessoaResponse>>> getPessoasAtrasadas() {
+    public ResponseEntity<ApiResponse<List<PessoaDetalheResponse>>> getPessoasAtrasadas() {
         // TODO: pessoaService.findPessoasAtrasadas();
         return ResponseEntity.ok(ApiResponse.success(null));
     }
@@ -98,7 +98,7 @@ public class PessoaMonitoradaController {
      * Buscar por CPF
      */
     @GetMapping("/cpf/{cpf}")
-    public ResponseEntity<ApiResponse<PessoaResponse>> getPessoaByCpf(@PathVariable String cpf) {
+    public ResponseEntity<ApiResponse<PessoaDetalheResponse>> getPessoaByCpf(@PathVariable String cpf) {
         // TODO: pessoaService.findByCpf(cpf);
         return ResponseEntity.ok(ApiResponse.success(null));
     }
@@ -107,7 +107,7 @@ public class PessoaMonitoradaController {
      * Buscar por número do processo
      */
     @GetMapping("/processo/{numeroProcesso}")
-    public ResponseEntity<ApiResponse<PessoaResponse>> getPessoaByProcesso(@PathVariable String numeroProcesso) {
+    public ResponseEntity<ApiResponse<PessoaDetalheResponse>> getPessoaByProcesso(@PathVariable String numeroProcesso) {
         // TODO: pessoaService.findByNumeroProcesso(numeroProcesso);
         return ResponseEntity.ok(ApiResponse.success(null));
     }

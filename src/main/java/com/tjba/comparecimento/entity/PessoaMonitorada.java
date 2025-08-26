@@ -58,6 +58,9 @@ public class PessoaMonitorada extends BaseEntity {
     @Column(name = "status", nullable = false)
     private StatusComparecimento status;
 
+    @Size(max = 500, message = "Observações deve ter no máximo 500 caracteres")
+    @Column(name = "observacoes", length = 500)
+    private String observacoes;
     // === RELACIONAMENTOS ===
     @Valid
     @OneToOne(mappedBy = "pessoaMonitorada", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
@@ -74,6 +77,7 @@ public class PessoaMonitorada extends BaseEntity {
     @OneToMany(mappedBy = "pessoaMonitorada", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
     @OrderBy("dataComparecimento DESC")
     private List<HistoricoComparecimento> historicoComparecimentos = new ArrayList<>();
+
 
     // === VALIDAÇÕES PERSONALIZADAS ===
     @AssertTrue(message = "Pelo menos CPF ou RG deve ser informado")
@@ -239,5 +243,13 @@ public class PessoaMonitorada extends BaseEntity {
                 ", nomeCompleto='" + nomeCompleto + '\'' +
                 ", status=" + status +
                 '}';
+    }
+
+    public String getObservacoes() {
+        return observacoes;
+    }
+
+    public void setObservacoes(String observacoes) {
+        this.observacoes = observacoes != null ? observacoes.trim() : null;
     }
 }
