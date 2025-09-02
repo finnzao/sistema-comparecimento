@@ -1,0 +1,360 @@
+-- =====================================================
+-- SCRIPT DE CRIAÇÃO DO BANCO DE DADOS
+-- Sistema de Comparecimento - TJBA
+-- =====================================================
+
+-- 1. CRIAR BANCO DE DADOS (executar como superuser)
+-- Conecte-se como postgres e execute:
+
+CREATE DATABASE comparecimento_db
+    WITH 
+    OWNER = postgres
+    ENCODING = 'UTF8'
+    LC_COLLATE = 'pt_BR.UTF-8'
+    LC_CTYPE = 'pt_BR.UTF-8'
+    TABLESPACE = pg_default
+    CONNECTION LIMIT = -1
+    TEMPLATE = template0;
+
+-- Comentário do banco
+COMMENT ON DATABASE comparecimento_db IS 'Banco de dados do Sistema de Controle de Comparecimento - TJBA';
+
+-- 2. CONECTAR AO BANCO RECÉM-CRIADO
+\c comparecimento_db;
+
+-- 3. CRIAR EXTENSÕES NECESSÁRIAS
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+CREATE EXTENSION IF NOT EXISTS "unaccent";
+
+-- 4. CRIAR TABELAS DO SISTEMA
+-- Observação: O Hibernate criará as tabelas automaticamente, mas aqui está a estrutura completa
+
+-- =====================================================
+-- TABELA: usuarios
+-- =====================================================
+CREATE TABLE IF NOT EXISTS usuarios (
+    id BIGSERIAL PRIMARY KEY,
+    nome VARCHAR(100) NOT NULL,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('ADMIN', 'USUARIO')),
+    departamento VARCHAR(100),
+    telefone VARCHAR(20),
+    avatar TEXT,
+    ativo BOOLEAN NOT NULL DEFAULT true,
+    ultimo_login TIMESTAMP,
+    configuracoes JSONB,
+    criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em TIMESTAMP,
+    version BIGINT DEFAULT 0
+);
+
+-- Índices para usuarios
+CREATE INDEX idx_usuario_email ON usuarios(email);
+CREATE INDEX idx_usuario_role ON usuarios(role);
+CREATE INDEX idx_usuario_ativo ON usuarios(ativo);
+
+-- =====================================================
+-- TABELA: pessoas_monitoradas
+-- =====================================================
+CREATE TABLE IF NOT EXISTS pessoas_monitoradas (
+    id BIGSERIAL PRIMARY KEY,
+    nome_completo VARCHAR(150) NOT NULL,
+    cpf VARCHAR(14) UNIQUE,
+    rg VARCHAR(20) UNIQUE,
+    contato VARCHAR(20) NOT NULL,
+    contato_emergencia VARCHAR(20),
+    status VARCHAR(20) NOT NULL CHECK (status IN ('EM_CONFORMIDADE', 'INADIMPLENTE')),
+    observacoes TEXT,
+    criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em TIMESTAMP,
+    version BIGINT DEFAULT 0
+);
+
+-- Índices para pessoas_monitoradas
+CREATE INDEX idx_pessoa_cpf ON pessoas_monitoradas(cpf);
+CREATE INDEX idx_pessoa_rg ON pessoas_monitoradas(rg);
+CREATE INDEX idx_pessoa_status ON pessoas_monitoradas(status);
+CREATE INDEX idx_pessoa_nome ON pessoas_monitoradas(nome_completo);
+
+-- =====================================================
+-- TABELA: processos_judiciais
+-- =====================================================
+CREATE TABLE IF NOT EXISTS processos_judiciais (
+    id BIGSERIAL PRIMARY KEY,
+    numero_processo VARCHAR(25) NOT NULL UNIQUE,
+    vara VARCHAR(100) NOT NULL,
+    comarca VARCHAR(100) NOT NULL,
+    data_decisao DATE NOT NULL,
+    ativo BOOLEAN NOT NULL DEFAULT true,
+    pessoa_monitorada_id BIGINT NOT NULL,
+    criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em TIMESTAMP,
+    version BIGINT DEFAULT 0,
+    
+    CONSTRAINT fk_processo_pessoa FOREIGN KEY (pessoa_monitorada_id) 
+        REFERENCES pessoas_monitoradas(id) ON DELETE CASCADE
+);
+
+-- Índices para processos_judiciais
+CREATE INDEX idx_processo_numero ON processos_judiciais(numero_processo);
+CREATE INDEX idx_processo_vara ON processos_judiciais(vara);
+CREATE INDEX idx_processo_comarca ON processos_judiciais(comarca);
+
+-- =====================================================
+-- TABELA: regimes_comparecimento
+-- =====================================================
+CREATE TABLE IF NOT EXISTS regimes_comparecimento (
+    id BIGSERIAL PRIMARY KEY,
+    periodicidade_dias INTEGER NOT NULL CHECK (periodicidade_dias > 0 AND periodicidade_dias <= 365),
+    data_comparecimento_inicial DATE NOT NULL,
+    proximo_comparecimento DATE,
+    pessoa_monitorada_id BIGINT NOT NULL,
+    criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em TIMESTAMP,
+    version BIGINT DEFAULT 0,
+    
+    CONSTRAINT fk_regime_pessoa FOREIGN KEY (pessoa_monitorada_id) 
+        REFERENCES pessoas_monitoradas(id) ON DELETE CASCADE
+);
+
+-- Índices para regimes_comparecimento
+CREATE INDEX idx_regime_pessoa ON regimes_comparecimento(pessoa_monitorada_id);
+CREATE INDEX idx_regime_proximo_comparecimento ON regimes_comparecimento(proximo_comparecimento);
+
+-- =====================================================
+-- TABELA: enderecos_vinculados
+-- =====================================================
+CREATE TABLE IF NOT EXISTS enderecos_vinculados (
+    id BIGSERIAL PRIMARY KEY,
+    cep VARCHAR(9) NOT NULL,
+    logradouro VARCHAR(200) NOT NULL,
+    numero VARCHAR(20),
+    complemento VARCHAR(100),
+    bairro VARCHAR(100) NOT NULL,
+    cidade VARCHAR(100) NOT NULL,
+    estado VARCHAR(2) NOT NULL CHECK (LENGTH(estado) = 2),
+    pessoa_monitorada_id BIGINT NOT NULL,
+    criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em TIMESTAMP,
+    version BIGINT DEFAULT 0,
+    
+    CONSTRAINT fk_endereco_pessoa FOREIGN KEY (pessoa_monitorada_id) 
+        REFERENCES pessoas_monitoradas(id) ON DELETE CASCADE
+);
+
+-- Índices para enderecos_vinculados
+CREATE INDEX idx_endereco_pessoa ON enderecos_vinculados(pessoa_monitorada_id);
+CREATE INDEX idx_endereco_cep ON enderecos_vinculados(cep);
+
+-- =====================================================
+-- TABELA: historico_comparecimentos
+-- =====================================================
+CREATE TABLE IF NOT EXISTS historico_comparecimentos (
+    id BIGSERIAL PRIMARY KEY,
+    pessoa_monitorada_id BIGINT NOT NULL,
+    data_comparecimento DATE NOT NULL,
+    hora_comparecimento TIME,
+    tipo_validacao VARCHAR(20) NOT NULL CHECK (tipo_validacao IN ('PRESENCIAL', 'ONLINE', 'JUSTIFICADO')),
+    validado_por VARCHAR(100) NOT NULL,
+    observacoes TEXT,
+    criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em TIMESTAMP,
+    version BIGINT DEFAULT 0,
+    
+    CONSTRAINT fk_historico_pessoa FOREIGN KEY (pessoa_monitorada_id) 
+        REFERENCES pessoas_monitoradas(id) ON DELETE CASCADE
+);
+
+-- Índices para historico_comparecimentos
+CREATE INDEX idx_historico_pessoa ON historico_comparecimentos(pessoa_monitorada_id);
+CREATE INDEX idx_historico_data ON historico_comparecimentos(data_comparecimento);
+CREATE INDEX idx_historico_tipo ON historico_comparecimentos(tipo_validacao);
+
+-- =====================================================
+-- TABELA: configuracoes_sistema
+-- =====================================================
+CREATE TABLE IF NOT EXISTS configuracoes_sistema (
+    id BIGSERIAL PRIMARY KEY,
+    chave VARCHAR(100) NOT NULL UNIQUE,
+    valor VARCHAR(500) NOT NULL,
+    descricao VARCHAR(200),
+    ativo BOOLEAN NOT NULL DEFAULT true,
+    categoria VARCHAR(50),
+    editavel BOOLEAN NOT NULL DEFAULT true,
+    criado_em TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    atualizado_em TIMESTAMP,
+    version BIGINT DEFAULT 0
+);
+
+-- Índices para configuracoes_sistema
+CREATE INDEX idx_config_chave ON configuracoes_sistema(chave);
+CREATE INDEX idx_config_ativo ON configuracoes_sistema(ativo);
+
+-- =====================================================
+-- INSERIR CONFIGURAÇÕES PADRÃO DO SISTEMA
+-- =====================================================
+INSERT INTO configuracoes_sistema (chave, valor, descricao, categoria, editavel) VALUES
+('sistema.nome', 'Sistema de Comparecimento TJBA', 'Nome do sistema', 'sistema', false),
+('sistema.versao', '1.0.0', 'Versão atual do sistema', 'sistema', false),
+('sistema.manutencao', 'false', 'Indica se o sistema está em modo manutenção', 'sistema', true),
+('notificacao.email.ativo', 'true', 'Ativa/desativa notificações por email', 'notificacao', true),
+('notificacao.sms.ativo', 'false', 'Ativa/desativa notificações por SMS', 'notificacao', true),
+('comparecimento.prazo_alerta_dias', '3', 'Dias antes do vencimento para enviar alerta', 'comparecimento', true),
+('comparecimento.prazo_vencimento_dias', '30', 'Dias para considerar comparecimento vencido', 'comparecimento', true),
+('relatorio.max_registros', '10000', 'Máximo de registros em relatórios', 'relatorio', true),
+('backup.automatico', 'true', 'Ativa/desativa backup automático', 'backup', true),
+('backup.horario', '02:00', 'Horário para execução do backup automático', 'backup', true),
+('audit.log_ativo', 'true', 'Ativa/desativa log de auditoria', 'audit', true),
+('seguranca.sessao_timeout_minutos', '60', 'Timeout da sessão em minutos', 'seguranca', true),
+('seguranca.tentativas_login_max', '5', 'Máximo de tentativas de login', 'seguranca', true),
+('integracao.viacep.timeout', '5000', 'Timeout para consulta ViaCEP em ms', 'integracao', true),
+('integracao.viacep.retry_attempts', '3', 'Tentativas de retry para ViaCEP', 'integracao', true);
+
+-- =====================================================
+-- CRIAR USUÁRIO ADMINISTRADOR PADRÃO
+-- =====================================================
+-- Senha: admin123 (criptografada com BCrypt)
+INSERT INTO usuarios (nome, email, password, role, departamento, ativo) VALUES
+('Administrador do Sistema', 'admin@tjba.jus.br', '$2a$10$YourHashedPasswordHere', 'ADMIN', 'TI', true);
+
+-- =====================================================
+-- DADOS DE EXEMPLO (OPCIONAL)
+-- =====================================================
+-- Pessoa de exemplo
+INSERT INTO pessoas_monitoradas (nome_completo, cpf, rg, contato, status, observacoes) VALUES
+('João da Silva Santos', '123.456.789-01', '1234567890', '(71) 99999-9999', 'EM_CONFORMIDADE', 'Pessoa cadastrada para teste do sistema');
+
+-- Processo judicial de exemplo
+INSERT INTO processos_judiciais (numero_processo, vara, comarca, data_decisao, pessoa_monitorada_id) VALUES
+('1234567-12.2024.8.05.0001', '1ª Vara Criminal', 'Salvador', '2024-01-15', 1);
+
+-- Regime de comparecimento de exemplo (mensal)
+INSERT INTO regimes_comparecimento (periodicidade_dias, data_comparecimento_inicial, proximo_comparecimento, pessoa_monitorada_id) VALUES
+(30, '2024-02-01', '2024-12-01', 1);
+
+-- Endereço de exemplo
+INSERT INTO enderecos_vinculados (cep, logradouro, numero, bairro, cidade, estado, pessoa_monitorada_id) VALUES
+('40070-110', 'Avenida Sete de Setembro', '1000', 'Centro', 'Salvador', 'BA', 1);
+
+-- =====================================================
+-- FUNÇÕES E TRIGGERS ÚTEIS
+-- =====================================================
+
+-- Função para atualizar automaticamente o campo atualizado_em
+CREATE OR REPLACE FUNCTION update_atualizado_em_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.atualizado_em = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ language 'plpgsql';
+
+-- Criar triggers para todas as tabelas
+CREATE TRIGGER update_usuarios_atualizado_em 
+    BEFORE UPDATE ON usuarios 
+    FOR EACH ROW EXECUTE FUNCTION update_atualizado_em_column();
+
+CREATE TRIGGER update_pessoas_atualizado_em 
+    BEFORE UPDATE ON pessoas_monitoradas 
+    FOR EACH ROW EXECUTE FUNCTION update_atualizado_em_column();
+
+CREATE TRIGGER update_processos_atualizado_em 
+    BEFORE UPDATE ON processos_judiciais 
+    FOR EACH ROW EXECUTE FUNCTION update_atualizado_em_column();
+
+CREATE TRIGGER update_regimes_atualizado_em 
+    BEFORE UPDATE ON regimes_comparecimento 
+    FOR EACH ROW EXECUTE FUNCTION update_atualizado_em_column();
+
+CREATE TRIGGER update_enderecos_atualizado_em 
+    BEFORE UPDATE ON enderecos_vinculados 
+    FOR EACH ROW EXECUTE FUNCTION update_atualizado_em_column();
+
+CREATE TRIGGER update_historico_atualizado_em 
+    BEFORE UPDATE ON historico_comparecimentos 
+    FOR EACH ROW EXECUTE FUNCTION update_atualizado_em_column();
+
+CREATE TRIGGER update_config_atualizado_em 
+    BEFORE UPDATE ON configuracoes_sistema 
+    FOR EACH ROW EXECUTE FUNCTION update_atualizado_em_column();
+
+-- =====================================================
+-- VIEWS ÚTEIS
+-- =====================================================
+
+-- View com dados consolidados das pessoas
+CREATE OR REPLACE VIEW vw_pessoas_completas AS
+SELECT 
+    p.id,
+    p.nome_completo,
+    p.cpf,
+    p.rg,
+    p.contato,
+    p.status,
+    pj.numero_processo,
+    pj.vara,
+    pj.comarca,
+    rc.periodicidade_dias,
+    rc.proximo_comparecimento,
+    e.cidade,
+    e.estado,
+    p.criado_em
+FROM pessoas_monitoradas p
+LEFT JOIN processos_judiciais pj ON p.id = pj.pessoa_monitorada_id
+LEFT JOIN regimes_comparecimento rc ON p.id = rc.pessoa_monitorada_id
+LEFT JOIN enderecos_vinculados e ON p.id = e.pessoa_monitorada_id;
+
+-- View de estatísticas por comarca
+CREATE OR REPLACE VIEW vw_estatisticas_comarca AS
+SELECT 
+    pj.comarca,
+    COUNT(DISTINCT p.id) as total_pessoas,
+    COUNT(DISTINCT CASE WHEN p.status = 'EM_CONFORMIDADE' THEN p.id END) as em_conformidade,
+    COUNT(DISTINCT CASE WHEN p.status = 'INADIMPLENTE' THEN p.id END) as inadimplentes,
+    ROUND(
+        (COUNT(DISTINCT CASE WHEN p.status = 'EM_CONFORMIDADE' THEN p.id END) * 100.0) / 
+        NULLIF(COUNT(DISTINCT p.id), 0), 2
+    ) as percentual_conformidade
+FROM pessoas_monitoradas p
+JOIN processos_judiciais pj ON p.id = pj.pessoa_monitorada_id
+GROUP BY pj.comarca
+ORDER BY total_pessoas DESC;
+
+-- =====================================================
+-- GRANTS E PERMISSÕES
+-- =====================================================
+
+-- Garantir permissões para o usuário da aplicação
+-- GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres;
+-- GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO postgres;
+
+-- =====================================================
+-- VERIFICAÇÕES FINAIS
+-- =====================================================
+
+-- Verificar se todas as tabelas foram criadas
+SELECT schemaname, tablename 
+FROM pg_tables 
+WHERE schemaname = 'public' 
+ORDER BY tablename;
+
+-- Verificar configurações inseridas
+SELECT chave, valor, categoria FROM configuracoes_sistema ORDER BY categoria, chave;
+
+-- Verificar dados de exemplo
+SELECT 
+    p.nome_completo,
+    pj.numero_processo,
+    pj.comarca,
+    rc.proximo_comparecimento,
+    e.cidade
+FROM pessoas_monitoradas p
+LEFT JOIN processos_judiciais pj ON p.id = pj.pessoa_monitorada_id
+LEFT JOIN regimes_comparecimento rc ON p.id = rc.pessoa_monitorada_id
+LEFT JOIN enderecos_vinculados e ON p.id = e.pessoa_monitorada_id;
+
+-- =====================================================
+-- SCRIPT CONCLUÍDO
+-- =====================================================
+COMMIT;
