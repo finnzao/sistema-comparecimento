@@ -135,13 +135,15 @@ public interface ConfiguracaoSistemaRepository extends JpaRepository<Configuraca
     /**
      * Buscar configurações numéricas
      */
-    @Query("SELECT c FROM ConfiguracaoSistema c WHERE c.valor REGEXP '^[0-9]+$' ORDER BY c.chave")
+    @Query("SELECT c FROM ConfiguracaoSistema c WHERE LENGTH(c.valor) > 0 AND " +
+            "SUBSTRING(c.valor, 1, 1) IN ('0','1','2','3','4','5','6','7','8','9') ORDER BY c.chave")
     List<ConfiguracaoSistema> findConfiguracoesNumericas();
 
     /**
      * Buscar configurações de tempo/horário
      */
-    @Query("SELECT c FROM ConfiguracaoSistema c WHERE c.valor REGEXP '^[0-9]{2}:[0-9]{2}$' ORDER BY c.chave")
+    @Query("SELECT c FROM ConfiguracaoSistema c WHERE LENGTH(c.valor) = 5 AND " +
+            "SUBSTRING(c.valor, 3, 1) = ':' ORDER BY c.chave")
     List<ConfiguracaoSistema> findConfiguracoesHorario();
 
     /**
@@ -196,8 +198,8 @@ public interface ConfiguracaoSistemaRepository extends JpaRepository<Configuraca
      * Buscar configurações que precisam de validação
      */
     @Query("SELECT c FROM ConfiguracaoSistema c WHERE " +
-            "(c.chave LIKE '%.timeout%' AND c.valor NOT REGEXP '^[0-9]+$') OR " +
+            "(c.chave LIKE '%.timeout%') OR " +
             "(c.chave LIKE '%.ativo' AND c.valor NOT IN ('true', 'false')) OR " +
-            "(c.chave LIKE '%.horario' AND c.valor NOT REGEXP '^[0-9]{2}:[0-9]{2}$')")
+            "(c.chave LIKE '%.horario' AND LENGTH(c.valor) != 5)")
     List<ConfiguracaoSistema> findConfiguracoesInvalidas();
 }
