@@ -159,10 +159,11 @@ public interface ProcessoJudicialRepository extends JpaRepository<ProcessoJudici
     Page<ProcessoJudicial> findByPadraoNumeracao(@Param("padrao") String padrao, Pageable pageable);
 
     /**
-     * Validar formato do número do processo (CNJ)
+     * Validar formato do número do processo (CNJ) - versão corrigida usando SQL nativo
      */
-    @Query("SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END FROM ProcessoJudicial p " +
-            "WHERE p.numeroProcesso = :numeroProcesso AND p.numeroProcesso REGEXP '^[0-9]{7}-[0-9]{2}\\.[0-9]{4}\\.[0-9]{1}\\.[0-9]{2}\\.[0-9]{4}$'")
+    @Query(value = "SELECT CASE WHEN COUNT(p) > 0 THEN true ELSE false END FROM processos_judiciais p " +
+            "WHERE p.numero_processo = :numeroProcesso AND p.numero_processo ~ '^[0-9]{7}-[0-9]{2}\\.[0-9]{4}\\.[0-9]{1}\\.[0-9]{2}\\.[0-9]{4}$'",
+            nativeQuery = true)
     boolean isNumeroProcessoValidFormat(@Param("numeroProcesso") String numeroProcesso);
 
     /**

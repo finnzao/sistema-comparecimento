@@ -285,7 +285,7 @@ public class DashboardService {
                 ((double) totalRealizados / (double) totalEsperados) * 100.0 : 0.0;
 
         // 2. Tempo médio entre comparecimentos
-        Double tempoMedioEntre = historicoRepository.calcularTempoMedioEntreComparecimentos(TipoValidacao.JUSTIFICADO);
+        Double tempoMedioEntre = historicoRepository.calcularTempoMedioEntreComparecimentos(String.valueOf(TipoValidacao.JUSTIFICADO));
 
         // 3. Eficiência por tipo de comparecimento
         long totalPresenciais = historicoRepository.countByPeriodoAndTipo(ultimoMes, hoje, null, TipoValidacao.PRESENCIAL);

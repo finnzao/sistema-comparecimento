@@ -145,11 +145,23 @@ public interface EnderecoVinculadoRepository extends JpaRepository<EnderecoVincu
     List<EnderecoVinculado> findByPadraoCep(@Param("padrao") String padrao);
 
     /**
-     * Validar formato de CEP
+     * Validar formato de CEP usando validação em Java ao invés de REGEXP
+     * Removida a query REGEXP que causava erro e substituída por validação programática
      */
-    @Query("SELECT CASE WHEN COUNT(e) > 0 THEN true ELSE false END FROM EnderecoVinculado e " +
-            "WHERE e.cep = :cep AND e.cep REGEXP '^[0-9]{5}-[0-9]{3}$'")
-    boolean isCepValidFormat(@Param("cep") String cep);
+    @Query("SELECT CASE WHEN COUNT(e) > 0 THEN true ELSE false END FROM EnderecoVinculado e WHERE e.cep = :cep")
+    boolean existsByCep(@Param("cep") String cep);
+
+    /**
+     * Método auxiliar para validação de formato de CEP
+     * Este método deve ser usado junto com validação programática
+     */
+    default boolean isCepValidFormat(String cep) {
+        if (cep == null) {
+            return false;
+        }
+        // Validação do formato CEP brasileiro: XXXXX-XXX
+        return cep.matches("^[0-9]{5}-[0-9]{3}$");
+    }
 
     /**
      * Buscar endereços mais utilizados (por logradouro)
